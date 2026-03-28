@@ -12,6 +12,7 @@ from __future__ import annotations
 import argparse
 import os
 from typing import Tuple, List
+import json
 
 import torch
 from torch import nn
@@ -46,6 +47,16 @@ def _resolve_csv(primary: str, fallback: str | None = None) -> str | None:
     if fallback and os.path.exists(fallback):
         return fallback
     return None
+
+
+def _load_dataset_report(path: str) -> dict:
+    if not path or not os.path.exists(path):
+        return {}
+    try:
+        with open(path, "r", encoding="utf-8") as f:
+            return json.load(f)
+    except Exception:
+        return {}
 
 
 def _wer(ref: List[str], hyp: List[str]) -> float:
@@ -241,6 +252,8 @@ def main():
     parser.add_argument("--short-max-len", type=int, default=20)
     parser.add_argument("--augment", action="store_true")
     parser.add_argument("--register", action="store_true", help="Register best checkpoints in model registry")
+    parser.add_argument("--dataset-report", default="reports/text_gloss_dataset_report.json")
+    parser.add_argument("--fail-on-warnings", action="store_true")
     args = parser.parse_args()
 
     args.train_csv = _resolve_csv(args.train_csv, "datasets/text_sign_pairs/training_data.csv")
@@ -248,6 +261,14 @@ def main():
     args.test_csv = _resolve_csv(args.test_csv)
     if not args.train_csv:
         raise FileNotFoundError("No training CSV found. Run build_text_gloss_dataset.py first.")
+
+    if args.dataset_report:
+        report = _load_dataset_report(args.dataset_report)
+        warnings = report.get("warnings") if isinstance(report, dict) else None
+        if warnings:
+            print(f"Dataset warnings: {warnings}")
+            if args.fail_on_warnings:
+                raise RuntimeError("Dataset warnings present. Resolve before training or disable --fail-on-warnings.")
 
     vocab_path = os.path.join(args.save_dir, "nlp_vocab.json")
     tokenizer = build_tokenizer(args.train_csv, args.val_csv, vocab_path)
