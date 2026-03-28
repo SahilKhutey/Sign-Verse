@@ -5,11 +5,12 @@ Main FastAPI application with CORS, routing, and lifespan management.
 Stores user data, translation history, and dataset metadata.
 """
 
-from fastapi import FastAPI, Request
+from fastapi import FastAPI, Request, BackgroundTasks, HTTPException
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from starlette.status import HTTP_422_UNPROCESSABLE_ENTITY, HTTP_500_INTERNAL_SERVER_ERROR
 from fastapi.middleware.cors import CORSMiddleware
+from pydantic import BaseModel
 import uvicorn
 import socketio
 import asyncio
@@ -71,6 +72,64 @@ app.add_middleware(
 # Routes
 app.include_router(user_router, prefix="/api/users", tags=["Users"])
 app.include_router(translation_router, prefix="/api/translations", tags=["Translations"])
+
+
+class TextGlossPipelineRequest(BaseModel):
+    min_len: int = 1
+    max_len: int = 50
+    max_pairs: int = 0
+    curriculum: bool = False
+    augment: bool = False
+    register: bool = False
+    fail_on_warnings: bool = True
+    epochs: int = 10
+    batch_size: int = 32
+    lr: float = 2e-4
+
+
+def _require_admin(request: Request):
+    admin_token = os.getenv("ADMIN_TOKEN")
+    if not admin_token:
+        raise HTTPException(status_code=503, detail="Admin token not configured")
+    provided = request.headers.get("x-admin-token")
+    if provided != admin_token:
+        raise HTTPException(status_code=401, detail="Unauthorized")
+
+
+def _run_text_gloss_pipeline(payload: TextGlossPipelineRequest):
+    import subprocess
+    import sys
+    cmd = [
+        sys.executable,
+        os.path.join("training", "run_text_gloss_pipeline.py"),
+        "--min-len", str(payload.min_len),
+        "--max-len", str(payload.max_len),
+        "--epochs", str(payload.epochs),
+        "--batch-size", str(payload.batch_size),
+        "--lr", str(payload.lr),
+    ]
+    if payload.max_pairs:
+        cmd += ["--max-pairs", str(payload.max_pairs)]
+    if payload.curriculum:
+        cmd.append("--curriculum")
+    if payload.augment:
+        cmd.append("--augment")
+    if payload.register:
+        cmd.append("--register")
+    if payload.fail_on_warnings:
+        cmd.append("--fail-on-warnings")
+    subprocess.Popen(cmd)
+
+
+@app.post("/admin/pipeline/text-gloss")
+async def run_text_gloss_pipeline(
+    request: Request,
+    payload: TextGlossPipelineRequest,
+    background_tasks: BackgroundTasks,
+):
+    _require_admin(request)
+    background_tasks.add_task(_run_text_gloss_pipeline, payload)
+    return {"status": "queued"}
 
 @app.middleware("http")
 async def add_request_id_and_log(request: Request, call_next):

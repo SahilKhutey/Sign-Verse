@@ -115,6 +115,11 @@ This registers the best checkpoints into the model registry under `deployment/mo
 python training/run_text_gloss_pipeline.py --curriculum --augment --register --fail-on-warnings
 ```
 
+### Admin Trigger (Backend)
+To trigger the dataset build + training pipeline from the backend:
+- Set `ADMIN_TOKEN` in env.
+- Call `POST /admin/pipeline/text-gloss` with header `x-admin-token`.
+
 Training also writes an evaluation report to:
 ```
 reports/nlp_eval.json

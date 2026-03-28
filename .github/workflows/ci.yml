@@ -27,6 +27,11 @@ jobs:
       - name: Tests (pytest)
         run: pytest -q
 
+      - name: Dataset report build
+        run: |
+          python training/data_pipeline/build_text_gloss_dataset.py --max-pairs 200
+          python -c "import json; data=json.load(open('reports/text_gloss_dataset_report.json')); required=['total_pairs','train_pairs','val_pairs','test_pairs','length_stats','top_tokens']; missing=[k for k in required if k not in data]; assert not missing, f'Missing keys: {missing}'"
+
   frontend:
     runs-on: ubuntu-latest
     defaults:
