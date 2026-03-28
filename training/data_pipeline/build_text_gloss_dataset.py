@@ -152,6 +152,31 @@ def _write_csv(path: str, pairs: List[Tuple[str, str]]) -> None:
             writer.writerow({"text": text, "gloss": gloss})
 
 
+def _length_stats(pairs: List[Tuple[str, str]]) -> dict:
+    if not pairs:
+        return {"text": {}, "gloss": {}}
+    text_lens = [len(t.split()) for t, _ in pairs]
+    gloss_lens = [len(g.split()) for _, g in pairs]
+    return {
+        "text": {
+            "min": min(text_lens),
+            "max": max(text_lens),
+            "avg": round(sum(text_lens) / max(1, len(text_lens)), 2),
+        },
+        "gloss": {
+            "min": min(gloss_lens),
+            "max": max(gloss_lens),
+            "avg": round(sum(gloss_lens) / max(1, len(gloss_lens)), 2),
+        },
+    }
+
+
+def _unique_counts(pairs: List[Tuple[str, str]]) -> dict:
+    texts = {_normalize_text(t).upper() for t, _ in pairs}
+    glosses = {_normalize_gloss(g) for _, g in pairs}
+    return {"unique_texts": len(texts), "unique_glosses": len(glosses)}
+
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--out-dir", default=os.path.join("datasets", "text_sign_pairs"))
@@ -208,6 +233,9 @@ def main():
         "test_pairs": len(test),
         "min_len": args.min_len,
         "max_len": args.max_len,
+        "dedupe_removed": max(0, len(augmented) - len(deduped)),
+        "length_stats": _length_stats(filtered),
+        "unique_counts": _unique_counts(filtered),
         "sources": {
             "csv_folder": base_dir,
             "labels_csv": os.path.join("training-data", "labels.csv"),
