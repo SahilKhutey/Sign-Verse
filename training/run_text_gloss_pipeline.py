@@ -29,6 +29,7 @@ def main():
     parser.add_argument("--epochs", type=int, default=10)
     parser.add_argument("--batch-size", type=int, default=32)
     parser.add_argument("--lr", type=float, default=2e-4)
+    parser.add_argument("--fail-on-warnings", action="store_true")
     args = parser.parse_args()
 
     build_cmd = [
@@ -47,6 +48,8 @@ def main():
         "--batch-size", str(args.batch_size),
         "--lr", str(args.lr),
     ]
+    if args.fail_on_warnings:
+        train_cmd.append("--fail-on-warnings")
     if args.curriculum:
         train_cmd.append("--curriculum")
     if args.augment:

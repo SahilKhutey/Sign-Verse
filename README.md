@@ -112,7 +112,7 @@ This registers the best checkpoints into the model registry under `deployment/mo
 
 ### One-Command Pipeline
 ```
-python training/run_text_gloss_pipeline.py --curriculum --augment --register
+python training/run_text_gloss_pipeline.py --curriculum --augment --register --fail-on-warnings
 ```
 
 Training also writes an evaluation report to:
