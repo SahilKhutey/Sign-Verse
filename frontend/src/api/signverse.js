@@ -45,6 +45,12 @@ export function classifyGestureSequence(sequence) {
   return inference.post('/gesture/classify-sequence', { sequence }).then(r => r.data)
 }
 
+export function classifyGestureImageCnn(file, minConfidence = 0.4) {
+  const form = new FormData()
+  form.append('file', file)
+  return inference.post(`/gesture/classify-image-cnn?min_confidence=${encodeURIComponent(minConfidence)}`, form).then(r => r.data)
+}
+
 export function speechToSign(file) {
   const form = new FormData()
   form.append('file', file)

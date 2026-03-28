@@ -116,6 +116,20 @@ This registers the best checkpoints into the model registry under `deployment/mo
 python training/run_text_gloss_pipeline.py --curriculum --augment --register --fail-on-warnings
 ```
 
+### Train ASL CNN (Optional Keras Path)
+Prototype-oriented letter classifier inspired by live interpreter repos:
+Install optional dependency:
+```
+pip install -r requirements-optional-asl-cnn.txt
+```
+Then train:
+```
+python training/train_asl_cnn_keras.py --data-dir datasets/asl_alphabet --epochs 15
+```
+Outputs:
+- `models/asl_cnn.h5`
+- `models/asl_cnn_labels.json`
+
 ### Admin Trigger (Backend)
 To trigger the dataset build + training pipeline from the backend:
 - Set `ADMIN_TOKEN` in env.
@@ -150,6 +164,11 @@ npm run dev
 Run the local webcam capture pipeline:
 ```
 python scripts/run_live_opencv_translate.py --camera 0
+```
+
+Run optional ASL CNN live interpreter:
+```
+python scripts/run_asl_cnn_live.py --camera 0 --min-confidence 0.4
 ```
 
 See `docs/LIVE_CAPTURE_GUIDE.md` for tracking tips.
@@ -207,3 +226,4 @@ See `docs/RELEASE_CHECKLIST.md` before shipping releases.
 ## Documentation
 
 More details in `docs/`.
+- `docs/ASL_CNN_INTEGRATION.md` for Keras CNN prototype flow.

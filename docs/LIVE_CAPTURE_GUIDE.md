@@ -48,6 +48,9 @@ Use the debug endpoint to get annotated frames:
 For temporal offline checks:
 `POST /gesture/classify-sequence` with `{"sequence": [[...], ...]}`.
 
+For image-based ASL letter checks (optional Keras path):
+`POST /gesture/classify-image-cnn` with image file upload.
+
 ## Tracking Guidelines
 
 1. **Lighting**

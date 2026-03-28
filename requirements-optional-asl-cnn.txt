@@ -1,0 +1,2 @@
+# Optional dependencies for Keras CNN ASL prototype path
+tensorflow>=2.15

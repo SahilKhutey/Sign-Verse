@@ -203,6 +203,21 @@ class ModelLoader:
 
         return self._models["gesture"]
 
+    def get_asl_cnn_model(self):
+        """
+        Optional Keras CNN model for letter-level ASL image classification.
+        """
+        if "asl_cnn" not in self._models:
+            from ai_models.gesture_recognition.cnn_asl import ASLCNNClassifier
+
+            model_path = os.path.join(self.model_dir, "asl_cnn.h5")
+            labels_path = os.path.join(self.model_dir, "asl_cnn_labels.json")
+            self._models["asl_cnn"] = ASLCNNClassifier(
+                model_path=model_path,
+                labels_path=labels_path if os.path.exists(labels_path) else None,
+            )
+        return self._models["asl_cnn"]
+
     def get_sign_transformer(self):
         if "sign_transformer" not in self._models:
             from ai_models.sign_transformer.train_transformer import SignTransformer

@@ -232,6 +232,35 @@ async def classify_gesture_sequence(data: KeypointSequenceRequest):
     return result
 
 
+@app.post("/gesture/classify-image-cnn")
+async def classify_gesture_image_cnn(file: UploadFile, min_confidence: float = 0.4):
+    """
+    Classify ASL letter/gesture from image using optional Keras CNN model.
+    """
+    if not file.content_type or not file.content_type.startswith("image/"):
+        raise HTTPException(status_code=400, detail="Expected an image upload")
+    try:
+        contents = await file.read()
+        import numpy as np
+        import cv2
+
+        arr = np.frombuffer(contents, np.uint8)
+        frame = cv2.imdecode(arr, cv2.IMREAD_COLOR)
+        if frame is None:
+            raise HTTPException(status_code=400, detail="Unable to decode image")
+
+        model = loader.get_asl_cnn_model()
+        pred = model.predict(frame)
+        conf = pred.get("confidence")
+        if conf is not None and float(conf) < float(min_confidence):
+            pred["label"] = None
+        return pred
+    except HTTPException:
+        raise
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"ASL CNN inference failed: {exc}")
+
+
 @app.post("/speech-to-sign/")
 async def speech_to_sign(file: UploadFile):
     """
