@@ -32,6 +32,7 @@ const Dashboard = () => {
   const env = import.meta.env.MODE || 'development';
   const registrySnapshot = dashboardJson?.model_registry;
   const nlpEval = dashboardJson?.nlp_eval;
+  const datasetReport = dashboardJson?.text_gloss_dataset;
 
   return (
     <motion.div 
@@ -117,6 +118,20 @@ const Dashboard = () => {
           ) : (
             <pre className="text-xs text-slate-200 bg-slate-900/40 border border-slate-800 rounded-xl p-4 overflow-auto max-h-64">
               {nlpEval ? JSON.stringify(nlpEval, null, 2) : 'No evaluation report yet.'}
+            </pre>
+          )}
+        </div>
+
+        <div className="glass-card p-8">
+          <h3 className="text-xl font-semibold mb-6 flex items-center gap-2">
+            <TrendingUp className="text-indigo-400" size={24} />
+            Text-Gloss Dataset Report
+          </h3>
+          {dashboardError ? (
+            <p className="text-sm text-amber-400">{dashboardError}</p>
+          ) : (
+            <pre className="text-xs text-slate-200 bg-slate-900/40 border border-slate-800 rounded-xl p-4 overflow-auto max-h-64">
+              {datasetReport ? JSON.stringify(datasetReport, null, 2) : 'No dataset report yet.'}
             </pre>
           )}
         </div>

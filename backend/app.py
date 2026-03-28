@@ -221,7 +221,12 @@ async def dashboard_json():
 
     model_manifest = _load_json("deployment/model_registry/manifest.json", {})
     nlp_eval = _load_json("reports/nlp_eval.json", {})
-    return {"model_registry": model_manifest, "nlp_eval": nlp_eval}
+    dataset_report = _load_json("reports/text_gloss_dataset_report.json", {})
+    return {
+        "model_registry": model_manifest,
+        "nlp_eval": nlp_eval,
+        "text_gloss_dataset": dataset_report,
+    }
 
 
 @app.on_event("startup")
