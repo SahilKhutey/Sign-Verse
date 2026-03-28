@@ -6,6 +6,7 @@
 - [ ] Run lint: `ruff check .`
 - [ ] Train or verify NLP models are available in `models/`
 - [ ] Verify `/health` and `/health/ready` for backend + api_server
+- [ ] Verify `/dashboard` loads and shows model registry + NLP eval
 - [ ] Confirm `.env` values for production (no `*` in `ALLOWED_ORIGINS`)
 - [ ] Confirm models and datasets are stored outside git
 

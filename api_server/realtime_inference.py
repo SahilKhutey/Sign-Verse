@@ -60,8 +60,10 @@ class RealtimeInference:
         seq = torch.tensor(kp).unsqueeze(0).unsqueeze(0).expand(1, 30, expected_dim)
         with torch.no_grad():
             logits = model(seq)
+            probs = torch.softmax(logits, dim=1)
         pred = logits.argmax(1).item()
-        return {"gesture_id": pred}
+        conf = float(probs[0, pred].item()) if probs.numel() > 0 else None
+        return {"gesture_id": pred, "confidence": conf}
 
     def sign_to_text(self, sequence):
         if not sequence:

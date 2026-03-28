@@ -6,6 +6,9 @@ Stores user data, translation history, and dataset metadata.
 """
 
 from fastapi import FastAPI, Request
+from fastapi.exceptions import RequestValidationError
+from fastapi.responses import JSONResponse
+from starlette.status import HTTP_422_UNPROCESSABLE_ENTITY, HTTP_500_INTERNAL_SERVER_ERROR
 from fastapi.middleware.cors import CORSMiddleware
 import uvicorn
 import socketio
@@ -72,6 +75,7 @@ app.include_router(translation_router, prefix="/api/translations", tags=["Transl
 @app.middleware("http")
 async def add_request_id_and_log(request: Request, call_next):
     request_id = request.headers.get("x-request-id") or os.urandom(8).hex()
+    request.state.request_id = request_id
     start = time.time()
     response = await call_next(request)
     duration_ms = int((time.time() - start) * 1000)
@@ -88,6 +92,31 @@ async def add_request_id_and_log(request: Request, call_next):
         },
     )
     return response
+
+
+@app.exception_handler(RequestValidationError)
+async def validation_exception_handler(request: Request, exc: RequestValidationError):
+    return JSONResponse(
+        status_code=HTTP_422_UNPROCESSABLE_ENTITY,
+        content={
+            "error": "validation_error",
+            "detail": exc.errors(),
+            "request_id": getattr(request.state, "request_id", None),
+        },
+    )
+
+
+@app.exception_handler(Exception)
+async def unhandled_exception_handler(request: Request, exc: Exception):
+    logger.exception("unhandled_exception", extra={"request_id": getattr(request.state, "request_id", None)})
+    return JSONResponse(
+        status_code=HTTP_500_INTERNAL_SERVER_ERROR,
+        content={
+            "error": "server_error",
+            "detail": "internal error",
+            "request_id": getattr(request.state, "request_id", None),
+        },
+    )
 
 @app.get("/health")
 async def health_check():
@@ -171,6 +200,28 @@ async def dashboard():
     </html>
     """
     return html
+
+
+@app.get("/dashboard/json")
+async def dashboard_json():
+    """
+    JSON dashboard data for UI clients.
+    """
+    import json
+    import os
+
+    def _load_json(path, default):
+        try:
+            if os.path.exists(path):
+                with open(path, "r", encoding="utf-8") as f:
+                    return json.load(f)
+        except Exception:
+            return default
+        return default
+
+    model_manifest = _load_json("deployment/model_registry/manifest.json", {})
+    nlp_eval = _load_json("reports/nlp_eval.json", {})
+    return {"model_registry": model_manifest, "nlp_eval": nlp_eval}
 
 
 @app.on_event("startup")

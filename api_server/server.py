@@ -10,6 +10,9 @@ Unified FastAPI server exposing all 5 AI layers:
 """
 
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect, UploadFile, HTTPException, Request
+from fastapi.exceptions import RequestValidationError
+from fastapi.responses import JSONResponse
+from starlette.status import HTTP_422_UNPROCESSABLE_ENTITY, HTTP_500_INTERNAL_SERVER_ERROR
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field, conlist
 from typing import List
@@ -30,6 +33,9 @@ app = FastAPI(
     version="2.0.0",
     description="Multimodal Sign Language AI — 5-layer inference API"
 )
+
+STREAM_TOKEN = os.getenv("STREAM_TOKEN")
+STREAM_TOKEN_REQUIRED = os.getenv("STREAM_TOKEN_REQUIRED", "false").lower() in {"1", "true", "yes"}
 
 def _parse_origins(value: str):
     if not value:
@@ -83,6 +89,7 @@ async def health_ready():
 @app.middleware("http")
 async def add_request_id_and_log(request: Request, call_next):
     request_id = request.headers.get("x-request-id") or os.urandom(8).hex()
+    request.state.request_id = request_id
     start = time.time()
     response = await call_next(request)
     duration_ms = int((time.time() - start) * 1000)
@@ -106,12 +113,68 @@ async def add_request_id_and_log(request: Request, call_next):
     return response
 
 
+@app.exception_handler(RequestValidationError)
+async def validation_exception_handler(request: Request, exc: RequestValidationError):
+    return JSONResponse(
+        status_code=HTTP_422_UNPROCESSABLE_ENTITY,
+        content={
+            "error": "validation_error",
+            "detail": exc.errors(),
+            "request_id": getattr(request.state, "request_id", None),
+        },
+    )
+
+
+@app.exception_handler(Exception)
+async def unhandled_exception_handler(request: Request, exc: Exception):
+    try:
+        from common.logger import get_logger
+        logger = get_logger("signverse-api-server")
+        logger.exception("unhandled_exception", extra={"request_id": getattr(request.state, "request_id", None)})
+    except Exception:
+        pass
+    return JSONResponse(
+        status_code=HTTP_500_INTERNAL_SERVER_ERROR,
+        content={
+            "error": "server_error",
+            "detail": "internal error",
+            "request_id": getattr(request.state, "request_id", None),
+        },
+    )
+
+
 @app.post("/vision/extract")
 async def extract_features(file: UploadFile):
     """Extract pose features from uploaded image/video frame."""
+    if not file.content_type or not file.content_type.startswith("image/"):
+        raise HTTPException(status_code=400, detail="Expected an image upload")
     contents = await file.read()
     features = realtime.extract_features_from_bytes(contents)
     return {"features": features.tolist(), "dim": len(features)}
+
+
+@app.post("/vision/extract-debug")
+async def extract_features_debug(file: UploadFile):
+    """
+    Debug endpoint that returns features + annotated image (base64 JPEG).
+    """
+    if not file.content_type or not file.content_type.startswith("image/"):
+        raise HTTPException(status_code=400, detail="Expected an image upload")
+    contents = await file.read()
+    import base64
+    import numpy as np
+    import cv2
+    from vision_pipeline.feature_extractor import FeatureExtractor
+
+    arr = np.frombuffer(contents, np.uint8)
+    frame = cv2.imdecode(arr, cv2.IMREAD_COLOR)
+    extractor = FeatureExtractor()
+    features, annotated = extractor.extract_and_draw(frame)
+
+    _, jpg = cv2.imencode(".jpg", annotated)
+    image_b64 = base64.b64encode(jpg.tobytes()).decode()
+
+    return {"features": features.tolist(), "dim": int(len(features)), "image_b64": image_b64}
 
 
 @app.post("/gesture/classify")
@@ -137,6 +200,9 @@ async def speech_to_sign(file: UploadFile):
     """
     if file is None or not file.filename:
         raise HTTPException(status_code=400, detail="Missing audio file")
+    if not file.content_type or not file.content_type.startswith("audio/"):
+        if file.content_type != "application/octet-stream":
+            raise HTTPException(status_code=400, detail="Expected an audio upload")
 
     file_location = os.path.join("temp", file.filename)
     with open(file_location, "wb") as buffer:
@@ -164,6 +230,8 @@ async def analyze_frame(file: UploadFile, return_keypoints: bool = False):
       - sign_tokens (best-effort: [gesture_label] if known)
       - keypoints (optional, when return_keypoints=true)
     """
+    if not file.content_type or not file.content_type.startswith("image/"):
+        raise HTTPException(status_code=400, detail="Expected an image upload")
     contents = await file.read()
     features = realtime.extract_features_from_bytes(contents)
     result = realtime.classify_gesture(features.tolist())
@@ -227,12 +295,77 @@ async def generate_motion(data: MotionRequest):
 @app.websocket("/ws/stream")
 async def websocket_stream(ws: WebSocket):
     """WebSocket for real-time gesture streaming to AR/VR clients."""
+    # Optional token check (query param: ?token=...)
+    token = ws.query_params.get("token")
+    if STREAM_TOKEN_REQUIRED and STREAM_TOKEN and token != STREAM_TOKEN:
+        await ws.close(code=1008)
+        return
+
     await ws.accept()
     ws_clients.append(ws)
+    fps_limit = 15
+    window = 8
+    from gesture_recognition.utils.temporal_filter import TemporalFilter
+    smoother = TemporalFilter(window=window)
+    last_frame_time = 0.0
     try:
         while True:
-            data = await ws.receive_json()
-            result = realtime.process_stream_frame(data)
+            msg = await ws.receive()
+            if msg.get("bytes") is not None:
+                image_bytes = msg["bytes"]
+                # Throttle frame rate
+                now = time.time()
+                if fps_limit > 0 and (now - last_frame_time) < (1 / fps_limit):
+                    continue
+                last_frame_time = now
+                # Guardrail on payload size (max 1MB)
+                if len(image_bytes) > 1_000_000:
+                    await ws.send_json({"error": "frame_too_large", "detail": "max 1MB"})
+                    continue
+                try:
+                    features = realtime.extract_features_from_bytes(image_bytes)
+                    start = time.time()
+                    result = realtime.classify_gesture(features.tolist())
+                    latency_ms = int((time.time() - start) * 1000)
+                    result["frame_id"] = int(time.time() * 1000)
+                    result["latency_ms"] = latency_ms
+                except Exception as e:
+                    await ws.send_json({"error": "frame_decode_failed", "detail": str(e)})
+                    continue
+                await ws.send_json(result)
+                continue
+            else:
+                data = msg.get("json") or {}
+
+            # Optional config message:
+            # {"type": "config", "fps": 15, "window": 8}
+            if data.get("type") == "config":
+                fps_limit = int(data.get("fps", fps_limit))
+                window = int(data.get("window", window))
+                smoother = TemporalFilter(window=window)
+                await ws.send_json({"type": "config_ack", "fps": fps_limit, "window": window})
+                continue
+
+            # Optional: accept base64-encoded image frames
+            if data.get("type") == "frame" and data.get("image_b64"):
+                import base64
+                try:
+                    image_bytes = base64.b64decode(data.get("image_b64"))
+                    features = realtime.extract_features_from_bytes(image_bytes)
+                    result = realtime.classify_gesture(features.tolist())
+                    result["frame_id"] = data.get("frame_id", 0)
+                except Exception as e:
+                    await ws.send_json({"error": "frame_decode_failed", "detail": str(e)})
+                    continue
+            else:
+                result = realtime.process_stream_frame(data)
+            gesture_id = result.get("gesture_id")
+            smooth_id = smoother.update(gesture_id)
+            if smooth_id is not None:
+                result["gesture_id"] = smooth_id
+                label = loader.gesture_label(smooth_id)
+                if label:
+                    result["gesture_label"] = label
             await ws.send_json(result)
     except WebSocketDisconnect:
         ws_clients.remove(ws)
@@ -256,3 +389,8 @@ class TextToSignRequest(BaseModel):
 class MotionRequest(BaseModel):
     tokens: List[str] = Field(default_factory=list)
     frames: int = Field(default=30, ge=1, le=240)
+
+
+class StreamInitRequest(BaseModel):
+    fps: int = Field(default=15, ge=1, le=60)
+    window: int = Field(default=8, ge=1, le=60)

@@ -76,6 +76,7 @@ Frontend:
 - `VITE_INFERENCE_URL`
 
 See `.env.example` for a full template.
+See `docs/ENVIRONMENTS.md` for environment profiles.
 
 ## Core Model Training
 
@@ -126,6 +127,20 @@ cd frontend
 npm install
 npm run dev
 ```
+
+## Live Capture (OpenCV)
+
+Run the local webcam capture pipeline:
+```
+python scripts/run_live_opencv_translate.py --camera 0
+```
+
+See `docs/LIVE_CAPTURE_GUIDE.md` for tracking tips.
+
+## Live Stream (WebSocket)
+
+The web UI can stream frames to the inference server using WebSocket:
+- `VITE_INFERENCE_WS` (default `ws://localhost:8000/ws/stream`)
 
 ## Android App
 

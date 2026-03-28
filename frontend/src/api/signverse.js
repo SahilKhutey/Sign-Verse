@@ -17,6 +17,10 @@ export function getBackendHealth() {
   return backend.get('/health').then(r => r.data)
 }
 
+export function getDashboardJson() {
+  return backend.get('/dashboard/json').then(r => r.data)
+}
+
 export function getInferenceHealth() {
   return inference.get('/health').then(r => r.data)
 }

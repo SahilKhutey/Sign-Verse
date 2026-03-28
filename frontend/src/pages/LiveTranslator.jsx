@@ -1,7 +1,7 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { motion } from 'framer-motion';
 import { Camera, Mic, Info } from 'lucide-react';
-import { textToSign } from '../api/signverse';
+import { textToSign, getInferenceHealth } from '../api/signverse';
 
 const LiveTranslator = () => {
   const [sentiment, setSentiment] = useState('Neutral');
@@ -10,6 +10,109 @@ const LiveTranslator = () => {
   const [tokens, setTokens] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
+  const [inferenceStatus, setInferenceStatus] = useState('Unknown');
+  const [streamStatus, setStreamStatus] = useState('Offline');
+  const videoRef = useRef(null);
+  const wsRef = useRef(null);
+  const canvasRef = useRef(null);
+  const [fps, setFps] = useState(0);
+  const [lastLabel, setLastLabel] = useState('Detecting...');
+  const [labelHistory, setLabelHistory] = useState([]);
+  const [smoothLabel, setSmoothLabel] = useState('Detecting...');
+  const [latency, setLatency] = useState(null);
+  const [confidencePct, setConfidencePct] = useState(null);
+
+  useEffect(() => {
+    getInferenceHealth()
+      .then(() => setInferenceStatus('Online'))
+      .catch(() => setInferenceStatus('Offline'));
+  }, []);
+
+  useEffect(() => {
+    // Start webcam
+    const start = async () => {
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+        if (videoRef.current) {
+          videoRef.current.srcObject = stream;
+        }
+      } catch (e) {
+        setStreamStatus('Camera denied');
+      }
+    };
+    start();
+  }, []);
+
+  const startStream = () => {
+    const baseUrl = import.meta.env.VITE_INFERENCE_WS || 'ws://localhost:8000/ws/stream';
+    const token = import.meta.env.VITE_STREAM_TOKEN;
+    const url = token ? `${baseUrl}?token=${encodeURIComponent(token)}` : baseUrl;
+    const ws = new WebSocket(url);
+    wsRef.current = ws;
+    ws.onopen = () => {
+      setStreamStatus('Online');
+      ws.send(JSON.stringify({ type: 'config', fps: 10, window: 8 }));
+    };
+    ws.onmessage = (evt) => {
+      try {
+        const data = JSON.parse(evt.data);
+        if (data.gesture_label) {
+          setTokens([data.gesture_label]);
+          setLastLabel(data.gesture_label);
+          setLabelHistory((prev) => {
+            const next = [data.gesture_label, ...prev].slice(0, 10);
+            // client-side smoothing by majority
+            const counts = next.reduce((acc, v) => {
+              acc[v] = (acc[v] || 0) + 1;
+              return acc;
+            }, {});
+            let best = next[0];
+            let bestCount = 0;
+            Object.entries(counts).forEach(([k, c]) => {
+              if (c > bestCount) {
+                best = k;
+                bestCount = c;
+              }
+            });
+            setSmoothLabel(best);
+            return next;
+          });
+          if (data.latency_ms !== undefined) setLatency(data.latency_ms);
+          if (data.confidence !== undefined && data.confidence !== null) {
+            setConfidencePct(Math.round(data.confidence * 100));
+          }
+        }
+      } catch {}
+    };
+    ws.onclose = () => setStreamStatus('Offline');
+
+    // frame capture loop
+    let lastTime = performance.now();
+    const loop = () => {
+      if (!videoRef.current || !canvasRef.current || ws.readyState !== 1) {
+        return;
+      }
+      const canvas = canvasRef.current;
+      const ctx = canvas.getContext('2d');
+      canvas.width = videoRef.current.videoWidth || 640;
+      canvas.height = videoRef.current.videoHeight || 480;
+      ctx.drawImage(videoRef.current, 0, 0, canvas.width, canvas.height);
+      canvas.toBlob((blob) => {
+        if (blob) ws.send(blob);
+      }, 'image/jpeg', 0.6);
+
+      const now = performance.now();
+      setFps(Math.round(1000 / Math.max(1, now - lastTime)));
+      lastTime = now;
+      setTimeout(loop, 100);
+    };
+    setTimeout(loop, 200);
+  };
+
+  const stopStream = () => {
+    if (wsRef.current) wsRef.current.close();
+    setStreamStatus('Offline');
+  };
 
   return (
     <motion.div 
@@ -27,6 +130,14 @@ const LiveTranslator = () => {
         </div>
 
         <div className="flex-1 bg-slate-900 rounded-3xl border border-slate-800 flex items-center justify-center relative overflow-hidden group">
+          <video
+            ref={videoRef}
+            autoPlay
+            playsInline
+            muted
+            className="absolute inset-0 w-full h-full object-cover opacity-80"
+          />
+          <canvas ref={canvasRef} className="hidden" />
           <Camera size={48} className="text-slate-700 group-hover:scale-110 transition-transform" />
           
           {/* Emotion Overlay */}
@@ -39,6 +150,9 @@ const LiveTranslator = () => {
             <span className="w-2 h-2 bg-red-500 rounded-full animate-pulse"></span>
             Camera Active
           </p>
+          <p className="absolute bottom-6 right-6 text-xs text-slate-300">
+            FPS: {fps} | {smoothLabel} | {latency !== null ? `${latency}ms` : '...'}
+          </p>
         </div>
 
         <div className="glass-card bg-indigo-500/10 border-indigo-500/20 p-6">
@@ -47,6 +161,11 @@ const LiveTranslator = () => {
             <Info size={16} className="text-slate-500" />
           </div>
           <p className="text-2xl font-semibold">"HELLO WORLD, I AM LEARNING SIGN LANGUAGE"</p>
+          <div className="text-xs text-slate-500 mt-2">Inference: {inferenceStatus}</div>
+          <div className="text-xs text-slate-500 mt-1">Stream: {streamStatus}</div>
+          {confidencePct !== null && (
+            <div className="text-xs text-slate-500 mt-1">Confidence: {confidencePct}%</div>
+          )}
         </div>
       </div>
 
@@ -120,6 +239,19 @@ const LiveTranslator = () => {
               <Mic size={18} /> Test Speaker
             </button>
           </div>
+        </div>
+
+        <div className="glass-card p-6">
+          <h3 className="text-lg font-semibold mb-4">Live Stream</h3>
+          <div className="flex gap-2">
+            <button className="btn-primary" onClick={startStream}>Start Stream</button>
+            <button className="bg-slate-800 text-slate-200 px-4 py-2 rounded-xl" onClick={stopStream}>Stop</button>
+          </div>
+          {labelHistory.length > 0 && (
+            <div className="text-xs text-slate-400 mt-3">
+              Recent: {labelHistory.join(' · ')}
+            </div>
+          )}
         </div>
       </div>
     </motion.div>

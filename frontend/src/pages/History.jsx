@@ -6,6 +6,7 @@ import { getHistory } from '../api/signverse';
 const HistoryPage = () => {
   const [history, setHistory] = useState([]);
   const [error, setError] = useState(null);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     const token = localStorage.getItem('signverse_token');
@@ -17,7 +18,8 @@ const HistoryPage = () => {
 
     getHistory(userId, token)
       .then(setHistory)
-      .catch(() => setError('Failed to load history'));
+      .catch(() => setError('Failed to load history'))
+      .finally(() => setLoading(false));
   }, []);
 
   return (
@@ -39,6 +41,9 @@ const HistoryPage = () => {
         </div>
       </div>
 
+      {loading && (
+        <div className="text-sm text-slate-400 mb-6">Loading history...</div>
+      )}
       {error && (
         <div className="text-sm text-slate-400 mb-6">{error}</div>
       )}
