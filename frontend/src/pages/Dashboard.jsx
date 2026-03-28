@@ -33,6 +33,17 @@ const Dashboard = () => {
   const registrySnapshot = dashboardJson?.model_registry;
   const nlpEval = dashboardJson?.nlp_eval;
   const datasetReport = dashboardJson?.text_gloss_dataset;
+  const datasetSummary = datasetReport
+    ? {
+        total: datasetReport.total_pairs ?? 0,
+        train: datasetReport.train_pairs ?? 0,
+        val: datasetReport.val_pairs ?? 0,
+        test: datasetReport.test_pairs ?? 0,
+        dedupeRemoved: datasetReport.dedupe_removed ?? 0,
+        textLen: datasetReport.length_stats?.text,
+        glossLen: datasetReport.length_stats?.gloss,
+      }
+    : null;
 
   return (
     <motion.div 
@@ -130,9 +141,35 @@ const Dashboard = () => {
           {dashboardError ? (
             <p className="text-sm text-amber-400">{dashboardError}</p>
           ) : (
-            <pre className="text-xs text-slate-200 bg-slate-900/40 border border-slate-800 rounded-xl p-4 overflow-auto max-h-64">
-              {datasetReport ? JSON.stringify(datasetReport, null, 2) : 'No dataset report yet.'}
-            </pre>
+            <div className="space-y-4">
+              <div className="grid grid-cols-2 gap-3 text-sm">
+                <div className="bg-slate-900/40 border border-slate-800 rounded-xl p-3">
+                  <div className="text-xs text-slate-400">Total Pairs</div>
+                  <div className="text-xl font-semibold">{datasetSummary?.total ?? '--'}</div>
+                </div>
+                <div className="bg-slate-900/40 border border-slate-800 rounded-xl p-3">
+                  <div className="text-xs text-slate-400">Dedupe Removed</div>
+                  <div className="text-xl font-semibold">{datasetSummary?.dedupeRemoved ?? '--'}</div>
+                </div>
+                <div className="bg-slate-900/40 border border-slate-800 rounded-xl p-3">
+                  <div className="text-xs text-slate-400">Train / Val / Test</div>
+                  <div className="text-sm text-slate-200">
+                    {datasetSummary ? `${datasetSummary.train} / ${datasetSummary.val} / ${datasetSummary.test}` : '--'}
+                  </div>
+                </div>
+                <div className="bg-slate-900/40 border border-slate-800 rounded-xl p-3">
+                  <div className="text-xs text-slate-400">Avg Lengths</div>
+                  <div className="text-sm text-slate-200">
+                    {datasetSummary && datasetSummary.textLen && datasetSummary.glossLen
+                      ? `Text ${datasetSummary.textLen.avg} • Gloss ${datasetSummary.glossLen.avg}`
+                      : '--'}
+                  </div>
+                </div>
+              </div>
+              <pre className="text-xs text-slate-200 bg-slate-900/40 border border-slate-800 rounded-xl p-4 overflow-auto max-h-64">
+                {datasetReport ? JSON.stringify(datasetReport, null, 2) : 'No dataset report yet.'}
+              </pre>
+            </div>
           )}
         </div>
       </div>
