@@ -144,11 +144,17 @@ def stage_validate(config):
     result = validate_dataset()
     return result.get("valid", False)
 
+def stage_text_gloss_dataset(config):
+    stage_header(4, "Text-Gloss Dataset Build")
+    from training.data_pipeline.build_text_gloss_dataset import main as build_text_gloss
+    build_text_gloss()
+    return True
+
 # ──────────────────────────────────────────────────────────────────
 # Stage 4: Tokenize
 # ──────────────────────────────────────────────────────────────────
 def stage_tokenize(config):
-    stage_header(4, "Gesture Tokenization")
+    stage_header(5, "Gesture Tokenization")
     from training.data_pipeline.gesture_tokenizer import GestureTokenizer
     import numpy as np
 
@@ -199,36 +205,36 @@ def stage_tokenize(config):
 # Stages 5-9: Training
 # ──────────────────────────────────────────────────────────────────
 def stage_train_gesture(config):
-    stage_header(5, "Training Gesture Model")
+    stage_header(6, "Training Gesture Model")
     from ai_models.gesture_recognition.train import train
     cfg = config.get("gesture_model", {})
     cfg.setdefault("data_dir", "training-data")
     return train(cfg)
 
 def stage_train_foundation(config):
-    stage_header(6, "Training Foundation Model")
+    stage_header(7, "Training Foundation Model")
     from training.train_foundation_model import train
     return train(config.get("foundation_model", {}))
 
 def stage_train_transformer(config):
-    stage_header(7, "Training Sign Transformer")
+    stage_header(8, "Training Sign Transformer")
     from ai_models.sign_transformer.train_transformer import train
     cfg = config.get("sign_transformer", {})
     return train(cfg)
 
 def stage_train_diffusion(config):
-    stage_header(8, "Training Diffusion Model")
+    stage_header(9, "Training Diffusion Model")
     from training.train_diffusion import train
     return train(config.get("diffusion_model", {}))
 
 def stage_train_llm(config):
-    stage_header(9, "Training Multimodal LLM")
+    stage_header(10, "Training Multimodal LLM")
     from ai_models.multimodal_llm.training_pipeline import train
     cfg = config.get("multimodal_llm", {})
     return train(cfg)
 
 def stage_train_co_speech(config):
-    stage_header(10, "Training Co-speech Generation")
+    stage_header(11, "Training Co-speech Generation")
     from training.train_co_speech import train
     return train(config.get("co_speech", {}))
 
@@ -236,7 +242,7 @@ def stage_train_co_speech(config):
 # Stage 10: Registry
 # ──────────────────────────────────────────────────────────────────
 def stage_save_registry(config):
-    stage_header(10, "Saving Registry")
+    stage_header(12, "Saving Registry")
     models_dir = "models"
     registry = {}
     if os.path.exists(models_dir):
@@ -253,6 +259,7 @@ STAGES = {
     "download":    stage_download,
     "preprocess":  stage_preprocess,
     "validate":    stage_validate,
+    "text_gloss":  stage_text_gloss_dataset,
     "tokenize":    stage_tokenize,
     "gesture":     stage_train_gesture,
     "foundation":  stage_train_foundation,
@@ -263,7 +270,7 @@ STAGES = {
     "registry":    stage_save_registry,
 }
 
-STAGE_ORDER = ["download", "preprocess", "validate", "tokenize", "gesture", "foundation", "transformer", "diffusion", "llm", "co_speech", "registry"]
+STAGE_ORDER = ["download", "preprocess", "validate", "text_gloss", "tokenize", "gesture", "foundation", "transformer", "diffusion", "llm", "co_speech", "registry"]
 
 def main():
     parser = argparse.ArgumentParser()

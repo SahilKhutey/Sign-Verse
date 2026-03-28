@@ -40,6 +40,14 @@ def build_tokenizer(train_csv: str, val_csv: str | None, vocab_path: str) -> Sig
     return tokenizer
 
 
+def _resolve_csv(primary: str, fallback: str | None = None) -> str | None:
+    if primary and os.path.exists(primary):
+        return primary
+    if fallback and os.path.exists(fallback):
+        return fallback
+    return None
+
+
 def _wer(ref: List[str], hyp: List[str]) -> float:
     # Simple word error rate (Levenshtein distance)
     n = len(ref)
@@ -217,8 +225,9 @@ def train_one(
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--train-csv", default="datasets/text_sign_pairs/training_data.csv")
-    parser.add_argument("--val-csv", default="datasets/text_sign_pairs/validation_data.csv")
+    parser.add_argument("--train-csv", default="datasets/text_sign_pairs/train.csv")
+    parser.add_argument("--val-csv", default="datasets/text_sign_pairs/val.csv")
+    parser.add_argument("--test-csv", default="datasets/text_sign_pairs/test.csv")
     parser.add_argument("--save-dir", default="models")
     parser.add_argument("--epochs", type=int, default=10)
     parser.add_argument("--batch-size", type=int, default=32)
@@ -233,6 +242,12 @@ def main():
     parser.add_argument("--augment", action="store_true")
     parser.add_argument("--register", action="store_true", help="Register best checkpoints in model registry")
     args = parser.parse_args()
+
+    args.train_csv = _resolve_csv(args.train_csv, "datasets/text_sign_pairs/training_data.csv")
+    args.val_csv = _resolve_csv(args.val_csv, "datasets/text_sign_pairs/validation_data.csv")
+    args.test_csv = _resolve_csv(args.test_csv)
+    if not args.train_csv:
+        raise FileNotFoundError("No training CSV found. Run build_text_gloss_dataset.py first.")
 
     vocab_path = os.path.join(args.save_dir, "nlp_vocab.json")
     tokenizer = build_tokenizer(args.train_csv, args.val_csv, vocab_path)
