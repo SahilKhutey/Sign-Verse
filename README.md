@@ -75,6 +75,8 @@ Frontend:
 - `VITE_BACKEND_URL`
 - `VITE_INFERENCE_URL`
 
+See `.env.example` for a full template.
+
 ## Core Model Training
 
 ### Build a Larger Text↔Gloss Dataset
@@ -96,6 +98,17 @@ Outputs:
 - `models/nlp_vocab.json`
 - `models/nlp_text2gloss.pt`
 - `models/nlp_gloss2text.pt`
+
+Optional:
+```
+python training/train_text_gloss.py --train-csv datasets/text_sign_pairs/expanded_pairs.csv --val-csv datasets/text_sign_pairs/validation_data.csv --curriculum --augment --register
+```
+This registers the best checkpoints into the model registry under `deployment/model_registry/`.
+
+Training also writes an evaluation report to:
+```
+reports/nlp_eval.json
+```
 
 ## Evaluation Metrics
 
@@ -130,6 +143,14 @@ Use Android Studio and set the API base URL in Settings.
 3. Add on-device pose extraction for mobile latency.
 4. Move models/datasets out of git and into artifact storage.
 5. Improve avatar retargeting pipeline.
+
+## MVP Definition
+
+See `docs/MVP_SCOPE.md` for the minimum scope and quality gates.
+
+## Release Checklist
+
+See `docs/RELEASE_CHECKLIST.md` before shipping releases.
 
 ## Future Plans
 

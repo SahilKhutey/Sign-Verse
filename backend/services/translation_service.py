@@ -17,6 +17,7 @@ from database.models import TranslationHistory
 from utils.authentication import get_current_user
 from utils.cache_manager import cache_manager
 from config import INFERENCE_API_URL
+from utils.rate_limit import limiter
 
 router = APIRouter()
 
@@ -136,6 +137,7 @@ class TranslationRequest(BaseModel):
     target_lang: str = "en"
 
 @router.post("/translate")
+@limiter.limit("20/minute")
 async def translate(request: TranslationRequest, db: Session = Depends(get_db), current_user: dict = Depends(verify_auth)):
     """Live translation via the AI Engine (Protected)."""
     try:

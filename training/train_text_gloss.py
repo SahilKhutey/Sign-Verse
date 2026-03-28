@@ -16,6 +16,8 @@ from typing import Tuple, List
 import torch
 from torch import nn
 from torch.utils.data import DataLoader
+from datetime import datetime
+import subprocess
 
 from nlp_translation.datasets.sign_text_dataset import SignTextDataset
 from nlp_translation.tokenizer import SignTokenizer
@@ -157,7 +159,7 @@ def train_one(
     num_layers: int,
     device: str,
     val_loader: DataLoader = None,
-) -> None:
+) -> Tuple[float, float, float]:
     model = TransformerSeq2Seq(
         src_vocab_size=tokenizer.vocab_size,
         tgt_vocab_size=tokenizer.vocab_size,
@@ -175,6 +177,8 @@ def train_one(
     opt = torch.optim.AdamW(model.parameters(), lr=lr)
 
     best_val = None
+    best_wer = None
+    best_bleu = None
     for epoch in range(epochs):
         model.train()
         total = 0.0
@@ -195,12 +199,20 @@ def train_one(
             print(f"  val_loss={val_loss:.4f} val_wer={val_wer:.4f} val_bleu={val_bleu:.4f}")
             if best_val is None or val_loss < best_val:
                 best_val = val_loss
+                best_wer = val_wer
+                best_bleu = val_bleu
                 os.makedirs(os.path.dirname(save_path), exist_ok=True)
                 torch.save(model.state_dict(), save_path)
 
     if val_loader is None:
         os.makedirs(os.path.dirname(save_path), exist_ok=True)
         torch.save(model.state_dict(), save_path)
+
+    return (
+        best_val if best_val is not None else -1.0,
+        best_wer if best_wer is not None else -1.0,
+        best_bleu if best_bleu is not None else -1.0,
+    )
 
 
 def main():
@@ -219,6 +231,7 @@ def main():
     parser.add_argument("--warmup-epochs", type=int, default=3)
     parser.add_argument("--short-max-len", type=int, default=20)
     parser.add_argument("--augment", action="store_true")
+    parser.add_argument("--register", action="store_true", help="Register best checkpoints in model registry")
     args = parser.parse_args()
 
     vocab_path = os.path.join(args.save_dir, "nlp_vocab.json")
@@ -243,7 +256,7 @@ def main():
     gloss2text_path = os.path.join(args.save_dir, "nlp_gloss2text.pt")
 
     print("Training text->gloss")
-    train_one(
+    t2g_metrics = train_one(
         dataset_text2gloss,
         tokenizer,
         text2gloss_path,
@@ -260,7 +273,7 @@ def main():
     if args.curriculum:
         print("Curriculum phase: extending to full max_len")
         dataset_text2gloss = SignTextDataset(args.train_csv, tokenizer, max_len=args.max_len, augment=args.augment)
-        train_one(
+        t2g_metrics = train_one(
             dataset_text2gloss,
             tokenizer,
             text2gloss_path,
@@ -275,7 +288,7 @@ def main():
         )
 
     print("Training gloss->text")
-    train_one(
+    g2t_metrics = train_one(
         dataset_gloss2text,
         tokenizer,
         gloss2text_path,
@@ -293,7 +306,7 @@ def main():
         print("Curriculum phase: extending to full max_len")
         dataset_gloss2text = SignTextDataset(args.train_csv, tokenizer, max_len=args.max_len, augment=args.augment)
         dataset_gloss2text.pairs = [(g, t) for (t, g) in dataset_gloss2text.pairs]
-        train_one(
+        g2t_metrics = train_one(
             dataset_gloss2text,
             tokenizer,
             gloss2text_path,
@@ -306,6 +319,99 @@ def main():
             device,
             val_loader=DataLoader(val_gloss2text, batch_size=args.batch_size) if val_gloss2text else None,
         )
+
+    # Git hash for traceability
+    git_hash = None
+    try:
+        git_hash = subprocess.check_output(["git", "rev-parse", "--short", "HEAD"]).decode().strip()
+    except Exception:
+        git_hash = "unknown"
+
+    # Write metrics metadata
+    meta_dir = args.save_dir
+    os.makedirs(meta_dir, exist_ok=True)
+    meta = {
+        "timestamp": datetime.utcnow().isoformat(),
+        "git_hash": git_hash,
+        "train_csv": args.train_csv,
+        "val_csv": args.val_csv,
+        "epochs": args.epochs,
+        "batch_size": args.batch_size,
+        "lr": args.lr,
+        "d_model": args.d_model,
+        "nhead": args.nhead,
+        "num_layers": args.num_layers,
+        "max_len": args.max_len,
+        "curriculum": bool(args.curriculum),
+        "augment": bool(args.augment),
+        "text2gloss": {
+            "val_loss": t2g_metrics[0],
+            "val_wer": t2g_metrics[1],
+            "val_bleu": t2g_metrics[2],
+        },
+        "gloss2text": {
+            "val_loss": g2t_metrics[0],
+            "val_wer": g2t_metrics[1],
+            "val_bleu": g2t_metrics[2],
+        },
+        "vocab_path": vocab_path,
+    }
+
+    with open(os.path.join(meta_dir, "nlp_text2gloss_meta.json"), "w", encoding="utf-8") as f:
+        import json
+        json.dump(meta["text2gloss"], f, indent=2)
+
+    with open(os.path.join(meta_dir, "nlp_gloss2text_meta.json"), "w", encoding="utf-8") as f:
+        import json
+        json.dump(meta["gloss2text"], f, indent=2)
+
+    if args.register:
+        from deployment.model_registry import ModelRegistry
+        registry = ModelRegistry()
+        version = f"v{datetime.utcnow().strftime('%Y%m%d-%H%M%S')}-{git_hash}"
+        registry.register_model(
+            "nlp_text2gloss",
+            text2gloss_path,
+            version=version,
+            metadata=meta["text2gloss"],
+        )
+        registry.register_model(
+            "nlp_gloss2text",
+            gloss2text_path,
+            version=version,
+            metadata=meta["gloss2text"],
+        )
+
+        # Also register gesture and sign-to-text checkpoints if present
+        gesture_ckpt = os.path.join(args.save_dir, "gesture_model_best.pt")
+        sign_ckpt = os.path.join(args.save_dir, "sign_transformer_best.pt")
+        if os.path.exists(gesture_ckpt):
+            registry.register_model("gesture", gesture_ckpt, version=version, metadata={"git_hash": git_hash})
+        if os.path.exists(sign_ckpt):
+            registry.register_model("sign_transformer", sign_ckpt, version=version, metadata={"git_hash": git_hash})
+
+    # Write evaluation report
+    report = {
+        "timestamp": datetime.utcnow().isoformat(),
+        "git_hash": git_hash,
+        "text2gloss": meta["text2gloss"],
+        "gloss2text": meta["gloss2text"],
+        "config": {
+            "epochs": args.epochs,
+            "batch_size": args.batch_size,
+            "lr": args.lr,
+            "d_model": args.d_model,
+            "nhead": args.nhead,
+            "num_layers": args.num_layers,
+            "max_len": args.max_len,
+            "curriculum": bool(args.curriculum),
+            "augment": bool(args.augment),
+        },
+    }
+    os.makedirs("reports", exist_ok=True)
+    with open(os.path.join("reports", "nlp_eval.json"), "w", encoding="utf-8") as f:
+        import json
+        json.dump(report, f, indent=2)
 
 
 if __name__ == "__main__":

@@ -17,6 +17,7 @@ from utils.authentication import (
     hash_token,
     get_current_user,
 )
+from utils.rate_limit import limiter
 
 router = APIRouter()
 
@@ -47,6 +48,7 @@ async def verify_auth(authorization: str = Header(None)):
 
 
 @router.post("/register")
+@limiter.limit("10/minute")
 async def register(user: UserCreate, db: Session = Depends(get_db)):
     existing = db.query(User).filter(User.email == user.email).first()
     if existing:
@@ -65,6 +67,7 @@ async def register(user: UserCreate, db: Session = Depends(get_db)):
 
 
 @router.post("/login")
+@limiter.limit("10/minute")
 async def login(user: UserLogin, db: Session = Depends(get_db)):
     db_user = db.query(User).filter(User.email == user.email).first()
 
@@ -92,6 +95,7 @@ async def login(user: UserLogin, db: Session = Depends(get_db)):
 
 
 @router.post("/refresh")
+@limiter.limit("20/minute")
 async def refresh(request: RefreshRequest, db: Session = Depends(get_db)):
     payload = verify_refresh_token(request.refresh_token)
     if not payload:
@@ -110,6 +114,7 @@ async def refresh(request: RefreshRequest, db: Session = Depends(get_db)):
 
 
 @router.post("/logout")
+@limiter.limit("20/minute")
 async def logout(request: RefreshRequest, db: Session = Depends(get_db)):
     token_hash = hash_token(request.refresh_token)
     stored = db.query(RefreshToken).filter(RefreshToken.token_hash == token_hash).first()

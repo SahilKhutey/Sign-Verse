@@ -13,18 +13,22 @@ import asyncio
 import os
 import sys
 import time
+from dotenv import load_dotenv
+
+# Load environment (optional .env)
+load_dotenv()
 
 # Add project root to sys.path
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
 from common.logger import get_logger
 from common.telemetry import setup_telemetry
-from slowapi import Limiter, _rate_limit_exceeded_handler
+from slowapi import _rate_limit_exceeded_handler
 from slowapi.util import get_remote_address
 from slowapi.errors import RateLimitExceeded
 
 logger = get_logger("signverse-backend")
-limiter = Limiter(key_func=get_remote_address)
+from utils.rate_limit import limiter
 
 from database.db_connection import init_db
 from database.db_connection import SessionLocal
@@ -120,6 +124,53 @@ async def readiness_check():
         "inference_ok": inference_ok,
         "error": error,
     }
+
+
+@app.get("/dashboard")
+async def dashboard():
+    """
+    Minimal HTML dashboard for MVP monitoring.
+    """
+    import json
+    import os
+
+    def _load_json(path, default):
+        try:
+            if os.path.exists(path):
+                with open(path, "r", encoding="utf-8") as f:
+                    return json.load(f)
+        except Exception:
+            return default
+        return default
+
+    model_manifest = _load_json("deployment/model_registry/manifest.json", {})
+    nlp_eval = _load_json("reports/nlp_eval.json", {})
+
+    html = f"""
+    <html>
+    <head>
+      <title>SignVerse Dashboard</title>
+      <style>
+        body {{ font-family: Arial, sans-serif; margin: 24px; }}
+        h1 {{ margin-bottom: 8px; }}
+        .card {{ border: 1px solid #ddd; padding: 16px; margin-bottom: 16px; border-radius: 8px; }}
+        pre {{ background: #f7f7f7; padding: 12px; border-radius: 6px; overflow-x: auto; }}
+      </style>
+    </head>
+    <body>
+      <h1>SignVerse MVP Dashboard</h1>
+      <div class="card">
+        <h3>Model Registry</h3>
+        <pre>{json.dumps(model_manifest, indent=2)}</pre>
+      </div>
+      <div class="card">
+        <h3>Latest NLP Eval</h3>
+        <pre>{json.dumps(nlp_eval, indent=2)}</pre>
+      </div>
+    </body>
+    </html>
+    """
+    return html
 
 
 @app.on_event("startup")

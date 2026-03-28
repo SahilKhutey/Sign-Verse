@@ -17,9 +17,13 @@ import uvicorn
 import os
 import shutil
 import time
+from dotenv import load_dotenv
 
 from api_server.model_loader import ModelLoader
 from api_server.realtime_inference import RealtimeInference
+
+# Load environment (optional .env)
+load_dotenv()
 
 app = FastAPI(
     title="SignVerse AI Server",
