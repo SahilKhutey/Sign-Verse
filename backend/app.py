@@ -17,6 +17,8 @@ import asyncio
 import os
 import sys
 import time
+import threading
+from datetime import datetime
 from dotenv import load_dotenv
 
 # Load environment (optional .env)
@@ -87,6 +89,53 @@ class TextGlossPipelineRequest(BaseModel):
     lr: float = 2e-4
 
 
+_PIPELINE_STATUS_LOCK = threading.Lock()
+_TEXT_GLOSS_PIPELINE_STATUS = {
+    "state": "idle",
+    "run_id": None,
+    "queued_at": None,
+    "started_at": None,
+    "finished_at": None,
+    "return_code": None,
+    "error": None,
+    "log_tail": None,
+}
+
+
+def _utc_now():
+    return datetime.utcnow().isoformat() + "Z"
+
+
+def _get_pipeline_status():
+    with _PIPELINE_STATUS_LOCK:
+        return dict(_TEXT_GLOSS_PIPELINE_STATUS)
+
+
+def _set_pipeline_status(**kwargs):
+    with _PIPELINE_STATUS_LOCK:
+        _TEXT_GLOSS_PIPELINE_STATUS.update(kwargs)
+
+
+def _queue_pipeline_run():
+    with _PIPELINE_STATUS_LOCK:
+        if _TEXT_GLOSS_PIPELINE_STATUS.get("state") in {"queued", "running"}:
+            return None
+        run_id = os.urandom(6).hex()
+        _TEXT_GLOSS_PIPELINE_STATUS.update(
+            {
+                "state": "queued",
+                "run_id": run_id,
+                "queued_at": _utc_now(),
+                "started_at": None,
+                "finished_at": None,
+                "return_code": None,
+                "error": None,
+                "log_tail": None,
+            }
+        )
+        return run_id
+
+
 def _require_admin(request: Request):
     admin_token = os.getenv("ADMIN_TOKEN")
     if not admin_token:
@@ -96,7 +145,7 @@ def _require_admin(request: Request):
         raise HTTPException(status_code=401, detail="Unauthorized")
 
 
-def _run_text_gloss_pipeline(payload: TextGlossPipelineRequest):
+def _run_text_gloss_pipeline(payload: TextGlossPipelineRequest, run_id: str):
     import subprocess
     import sys
     cmd = [
@@ -118,7 +167,33 @@ def _run_text_gloss_pipeline(payload: TextGlossPipelineRequest):
         cmd.append("--register")
     if payload.fail_on_warnings:
         cmd.append("--fail-on-warnings")
-    subprocess.Popen(cmd)
+    _set_pipeline_status(
+        state="running",
+        run_id=run_id,
+        started_at=_utc_now(),
+        finished_at=None,
+        return_code=None,
+        error=None,
+    )
+    try:
+        proc = subprocess.run(cmd, capture_output=True, text=True)
+        output = (proc.stdout or "") + ("\n" + proc.stderr if proc.stderr else "")
+        _set_pipeline_status(
+            state="success" if proc.returncode == 0 else "failed",
+            run_id=run_id,
+            finished_at=_utc_now(),
+            return_code=proc.returncode,
+            log_tail=output[-4000:] if output else None,
+            error=None if proc.returncode == 0 else "pipeline_failed",
+        )
+    except Exception as exc:
+        _set_pipeline_status(
+            state="failed",
+            run_id=run_id,
+            finished_at=_utc_now(),
+            return_code=-1,
+            error=str(exc),
+        )
 
 
 @app.post("/admin/pipeline/text-gloss")
@@ -128,8 +203,17 @@ async def run_text_gloss_pipeline(
     background_tasks: BackgroundTasks,
 ):
     _require_admin(request)
-    background_tasks.add_task(_run_text_gloss_pipeline, payload)
-    return {"status": "queued"}
+    run_id = _queue_pipeline_run()
+    if run_id is None:
+        raise HTTPException(status_code=409, detail="Pipeline already running")
+    background_tasks.add_task(_run_text_gloss_pipeline, payload, run_id)
+    return {"status": "queued", "run_id": run_id}
+
+
+@app.get("/admin/pipeline/text-gloss/status")
+async def text_gloss_pipeline_status(request: Request):
+    _require_admin(request)
+    return _get_pipeline_status()
 
 @app.middleware("http")
 async def add_request_id_and_log(request: Request, call_next):
