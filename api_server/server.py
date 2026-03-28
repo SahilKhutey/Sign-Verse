@@ -70,6 +70,30 @@ def _get_speech_pipeline():
     return _speech_pipeline
 
 
+class KeypointRequest(BaseModel):
+    keypoints: conlist(float, min_length=1) = Field(..., description="Flattened keypoint vector")
+
+
+class SignToTextRequest(BaseModel):
+    sequence: List[List[float]] = Field(..., description="Sequence of keypoint frames")
+
+
+class TextToSignRequest(BaseModel):
+    text: str = Field(..., min_length=1, max_length=2000)
+
+
+class MotionRequest(BaseModel):
+    tokens: List[str] = Field(default_factory=list)
+    frames: int = Field(default=30, ge=1, le=240)
+
+
+class StreamInitRequest(BaseModel):
+    fps: int = Field(default=15, ge=1, le=60)
+    window: int = Field(default=8, ge=1, le=60)
+    min_confidence: float = Field(default=0.4, ge=0.0, le=1.0)
+    max_frame_bytes: int = Field(default=1_000_000, ge=10_000, le=5_000_000)
+
+
 @app.get("/health")
 async def health():
     return {"status": "ok", "models": loader.loaded_models()}
@@ -305,9 +329,12 @@ async def websocket_stream(ws: WebSocket):
     ws_clients.append(ws)
     fps_limit = 15
     window = 8
+    min_confidence = 0.4
+    max_frame_bytes = 1_000_000
     from gesture_recognition.utils.temporal_filter import TemporalFilter
     smoother = TemporalFilter(window=window)
     last_frame_time = 0.0
+    dropped_frames = 0
     try:
         while True:
             msg = await ws.receive()
@@ -316,11 +343,12 @@ async def websocket_stream(ws: WebSocket):
                 # Throttle frame rate
                 now = time.time()
                 if fps_limit > 0 and (now - last_frame_time) < (1 / fps_limit):
+                    dropped_frames += 1
                     continue
                 last_frame_time = now
                 # Guardrail on payload size (max 1MB)
-                if len(image_bytes) > 1_000_000:
-                    await ws.send_json({"error": "frame_too_large", "detail": "max 1MB"})
+                if len(image_bytes) > max_frame_bytes:
+                    await ws.send_json({"error": "frame_too_large", "detail": f"max {max_frame_bytes} bytes"})
                     continue
                 try:
                     features = realtime.extract_features_from_bytes(image_bytes)
@@ -329,21 +357,40 @@ async def websocket_stream(ws: WebSocket):
                     latency_ms = int((time.time() - start) * 1000)
                     result["frame_id"] = int(time.time() * 1000)
                     result["latency_ms"] = latency_ms
+                    result["server_ts"] = int(time.time() * 1000)
+                    result["dropped_frames"] = dropped_frames
                 except Exception as e:
                     await ws.send_json({"error": "frame_decode_failed", "detail": str(e)})
                     continue
+                conf = result.get("confidence")
+                if conf is not None and conf < min_confidence:
+                    result["gesture_id"] = None
                 await ws.send_json(result)
                 continue
             else:
                 data = msg.get("json") or {}
 
             # Optional config message:
-            # {"type": "config", "fps": 15, "window": 8}
+            # {"type": "config", "fps": 15, "window": 8, "min_confidence": 0.4}
             if data.get("type") == "config":
-                fps_limit = int(data.get("fps", fps_limit))
-                window = int(data.get("window", window))
+                payload = StreamInitRequest(
+                    fps=data.get("fps", fps_limit),
+                    window=data.get("window", window),
+                    min_confidence=data.get("min_confidence", min_confidence),
+                    max_frame_bytes=data.get("max_frame_bytes", max_frame_bytes),
+                )
+                fps_limit = int(payload.fps)
+                window = int(payload.window)
+                min_confidence = float(payload.min_confidence)
+                max_frame_bytes = int(payload.max_frame_bytes)
                 smoother = TemporalFilter(window=window)
-                await ws.send_json({"type": "config_ack", "fps": fps_limit, "window": window})
+                await ws.send_json({
+                    "type": "config_ack",
+                    "fps": fps_limit,
+                    "window": window,
+                    "min_confidence": min_confidence,
+                    "max_frame_bytes": max_frame_bytes,
+                })
                 continue
 
             # Optional: accept base64-encoded image frames
@@ -351,21 +398,31 @@ async def websocket_stream(ws: WebSocket):
                 import base64
                 try:
                     image_bytes = base64.b64decode(data.get("image_b64"))
+                    if len(image_bytes) > max_frame_bytes:
+                        await ws.send_json({"error": "frame_too_large", "detail": f"max {max_frame_bytes} bytes"})
+                        continue
                     features = realtime.extract_features_from_bytes(image_bytes)
                     result = realtime.classify_gesture(features.tolist())
                     result["frame_id"] = data.get("frame_id", 0)
+                    result["server_ts"] = int(time.time() * 1000)
                 except Exception as e:
                     await ws.send_json({"error": "frame_decode_failed", "detail": str(e)})
                     continue
             else:
                 result = realtime.process_stream_frame(data)
             gesture_id = result.get("gesture_id")
+            conf = result.get("confidence")
+            if conf is not None and conf < min_confidence:
+                gesture_id = None
+                result["gesture_id"] = None
             smooth_id = smoother.update(gesture_id)
             if smooth_id is not None:
                 result["gesture_id"] = smooth_id
                 label = loader.gesture_label(smooth_id)
                 if label:
                     result["gesture_label"] = label
+            result["dropped_frames"] = dropped_frames
+            result["server_ts"] = int(time.time() * 1000)
             await ws.send_json(result)
     except WebSocketDisconnect:
         ws_clients.remove(ws)
@@ -374,23 +431,3 @@ async def websocket_stream(ws: WebSocket):
 if __name__ == "__main__":
     reload = os.getenv("UVICORN_RELOAD", "false").lower() in {"1", "true", "yes"}
     uvicorn.run("api_server.server:app", host="0.0.0.0", port=8000, reload=reload)
-class KeypointRequest(BaseModel):
-    keypoints: conlist(float, min_length=1) = Field(..., description="Flattened keypoint vector")
-
-
-class SignToTextRequest(BaseModel):
-    sequence: List[List[float]] = Field(..., description="Sequence of keypoint frames")
-
-
-class TextToSignRequest(BaseModel):
-    text: str = Field(..., min_length=1, max_length=2000)
-
-
-class MotionRequest(BaseModel):
-    tokens: List[str] = Field(default_factory=list)
-    frames: int = Field(default=30, ge=1, le=240)
-
-
-class StreamInitRequest(BaseModel):
-    fps: int = Field(default=15, ge=1, le=60)
-    window: int = Field(default=8, ge=1, le=60)
