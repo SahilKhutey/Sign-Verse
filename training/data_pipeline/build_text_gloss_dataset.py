@@ -204,6 +204,8 @@ def main():
     parser.add_argument("--train-ratio", type=float, default=0.9)
     parser.add_argument("--val-ratio", type=float, default=0.05)
     parser.add_argument("--test-ratio", type=float, default=0.05)
+    parser.add_argument("--warn-dedupe-rate", type=float, default=0.35)
+    parser.add_argument("--warn-min-pairs", type=int, default=200)
     args = parser.parse_args()
 
     base_dir = args.out_dir
@@ -246,6 +248,12 @@ def main():
 
     dedupe_removed = max(0, len(augmented) - len(deduped))
     dedupe_rate = round(dedupe_removed / max(1, len(augmented)), 4)
+    warnings = []
+    if dedupe_rate >= args.warn_dedupe_rate:
+        warnings.append(f"High dedupe rate: {dedupe_rate:.2f}")
+    if len(filtered) < args.warn_min_pairs:
+        warnings.append(f"Low dataset size: {len(filtered)} pairs")
+
     report = {
         "total_pairs": len(filtered),
         "train_pairs": len(train),
@@ -258,6 +266,7 @@ def main():
         "length_stats": _length_stats(filtered),
         "unique_counts": _unique_counts(filtered),
         "top_tokens": _top_tokens(filtered),
+        "warnings": warnings,
         "sources": {
             "csv_folder": base_dir,
             "labels_csv": os.path.join("training-data", "labels.csv"),

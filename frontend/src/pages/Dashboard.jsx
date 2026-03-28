@@ -43,6 +43,7 @@ const Dashboard = () => {
         dedupeRate: datasetReport.dedupe_rate ?? 0,
         textLen: datasetReport.length_stats?.text,
         glossLen: datasetReport.length_stats?.gloss,
+        warnings: datasetReport.warnings || [],
       }
     : null;
 
@@ -173,6 +174,11 @@ const Dashboard = () => {
                   </div>
                 </div>
               </div>
+              {datasetSummary && datasetSummary.warnings.length > 0 && (
+                <div className="bg-amber-500/10 border border-amber-500/30 rounded-xl p-3 text-xs text-amber-200">
+                  Warnings: {datasetSummary.warnings.join(' | ')}
+                </div>
+              )}
               <pre className="text-xs text-slate-200 bg-slate-900/40 border border-slate-800 rounded-xl p-4 overflow-auto max-h-64">
                 {datasetReport ? JSON.stringify(datasetReport, null, 2) : 'No dataset report yet.'}
               </pre>
