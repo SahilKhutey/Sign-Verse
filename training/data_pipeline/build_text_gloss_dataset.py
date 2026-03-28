@@ -177,6 +177,24 @@ def _unique_counts(pairs: List[Tuple[str, str]]) -> dict:
     return {"unique_texts": len(texts), "unique_glosses": len(glosses)}
 
 
+def _top_tokens(pairs: List[Tuple[str, str]], limit: int = 20) -> dict:
+    text_counts = {}
+    gloss_counts = {}
+    for text, gloss in pairs:
+        for tok in _normalize_text(text).split():
+            tok = tok.lower()
+            text_counts[tok] = text_counts.get(tok, 0) + 1
+        for tok in _normalize_gloss(gloss).split():
+            tok = tok.lower()
+            gloss_counts[tok] = gloss_counts.get(tok, 0) + 1
+    text_top = sorted(text_counts.items(), key=lambda kv: kv[1], reverse=True)[:limit]
+    gloss_top = sorted(gloss_counts.items(), key=lambda kv: kv[1], reverse=True)[:limit]
+    return {
+        "text_top": text_top,
+        "gloss_top": gloss_top,
+    }
+
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--out-dir", default=os.path.join("datasets", "text_sign_pairs"))
@@ -226,6 +244,8 @@ def main():
     _write_csv(out_val, val)
     _write_csv(out_test, test)
 
+    dedupe_removed = max(0, len(augmented) - len(deduped))
+    dedupe_rate = round(dedupe_removed / max(1, len(augmented)), 4)
     report = {
         "total_pairs": len(filtered),
         "train_pairs": len(train),
@@ -233,9 +253,11 @@ def main():
         "test_pairs": len(test),
         "min_len": args.min_len,
         "max_len": args.max_len,
-        "dedupe_removed": max(0, len(augmented) - len(deduped)),
+        "dedupe_removed": dedupe_removed,
+        "dedupe_rate": dedupe_rate,
         "length_stats": _length_stats(filtered),
         "unique_counts": _unique_counts(filtered),
+        "top_tokens": _top_tokens(filtered),
         "sources": {
             "csv_folder": base_dir,
             "labels_csv": os.path.join("training-data", "labels.csv"),

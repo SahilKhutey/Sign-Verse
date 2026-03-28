@@ -40,6 +40,7 @@ const Dashboard = () => {
         val: datasetReport.val_pairs ?? 0,
         test: datasetReport.test_pairs ?? 0,
         dedupeRemoved: datasetReport.dedupe_removed ?? 0,
+        dedupeRate: datasetReport.dedupe_rate ?? 0,
         textLen: datasetReport.length_stats?.text,
         glossLen: datasetReport.length_stats?.gloss,
       }
@@ -150,6 +151,12 @@ const Dashboard = () => {
                 <div className="bg-slate-900/40 border border-slate-800 rounded-xl p-3">
                   <div className="text-xs text-slate-400">Dedupe Removed</div>
                   <div className="text-xl font-semibold">{datasetSummary?.dedupeRemoved ?? '--'}</div>
+                </div>
+                <div className="bg-slate-900/40 border border-slate-800 rounded-xl p-3">
+                  <div className="text-xs text-slate-400">Dedupe Rate</div>
+                  <div className="text-xl font-semibold">
+                    {datasetSummary ? `${Math.round(datasetSummary.dedupeRate * 100)}%` : '--'}
+                  </div>
                 </div>
                 <div className="bg-slate-900/40 border border-slate-800 rounded-xl p-3">
                   <div className="text-xs text-slate-400">Train / Val / Test</div>
