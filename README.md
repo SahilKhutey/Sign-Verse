@@ -45,6 +45,7 @@ Runs the core inference endpoints:
 - `POST /gesture/classify-video-lstm`
 - `POST /translate/sign-to-text`
 - `POST /translate/text-to-sign`
+- `POST /translate/text-to-sign-video-plan`
 - `POST /translate/sign-to-speech`
 - `POST /speech-to-sign/`
 - `WS /ws/stream`
@@ -118,6 +119,11 @@ This registers the best checkpoints into the model registry under `deployment/mo
 python training/run_text_gloss_pipeline.py --curriculum --augment --register --fail-on-warnings
 ```
 
+Optional synthetic-video + embedding expansion:
+```
+python training/run_text_gloss_pipeline.py --curriculum --augment --register --generate-synthetic-video --dictionary-manifest datasets/sign_dictionary/manifest.csv --extract-video-embeddings
+```
+
 ### Train ASL CNN (Optional Keras Path)
 Prototype-oriented letter classifier inspired by live interpreter repos:
 Install optional dependency:
@@ -144,6 +150,19 @@ Outputs:
 - `models/video_lstm_best.h5`
 - `models/video_lstm_labels.json`
 - `reports/video_lstm_eval.json`
+
+### Build Concatenative Text->Sign Video Engine (Optional)
+Framework-style sentence synthesis inspired by modular sign-language-translator systems:
+```
+python training/data_pipeline/build_sign_video_dictionary.py --clips-root datasets/sign_dictionary/clips --output-manifest datasets/sign_dictionary/manifest.csv
+python training/data_pipeline/generate_synthetic_sign_video_pairs.py --pairs-csv datasets/text_sign_pairs/expanded_pairs.csv --dictionary-manifest datasets/sign_dictionary/manifest.csv --output-dir datasets/synthetic_sentence_videos --output-manifest training-data/synthetic_sign_video_pairs.csv --min-coverage 0.6 --max-samples 500
+python training/data_pipeline/extract_video_embeddings.py --input-dir datasets/isolated_videos --output-dir training-data/video_embeddings --manifest training-data/video_embeddings_manifest.csv
+```
+Outputs:
+- `datasets/sign_dictionary/manifest.csv`
+- `training-data/synthetic_sign_video_pairs.csv`
+- `reports/synthetic_sign_video_report.json`
+- `training-data/video_embeddings_manifest.csv`
 
 ### Admin Trigger (Backend)
 To trigger the dataset build + training pipeline from the backend:
@@ -189,6 +208,12 @@ python scripts/run_asl_cnn_live.py --camera 0 --min-confidence 0.4
 Run optional video classifier inference:
 ```
 python scripts/run_video_lstm_inference.py --video path/to/sample.mp4 --min-confidence 0.4
+```
+
+Run optional concatenative sentence synthesis:
+```
+python scripts/run_concatenative_synthesis.py --text "hello how are you" --plan-only
+python scripts/run_concatenative_synthesis.py --text "hello how are you" --output datasets/synthetic_sentence_videos/demo.mp4
 ```
 
 See `docs/LIVE_CAPTURE_GUIDE.md` for tracking tips.
@@ -248,3 +273,4 @@ See `docs/RELEASE_CHECKLIST.md` before shipping releases.
 More details in `docs/`.
 - `docs/ASL_CNN_INTEGRATION.md` for Keras CNN prototype flow.
 - `docs/VIDEO_LSTM_INTEGRATION.md` for Keras video CNN+LSTM prototype flow.
+- `docs/SIGN_LANGUAGE_TRANSLATOR_INTEGRATION.md` for concatenative synthesis + video embedding workflow.

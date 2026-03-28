@@ -86,6 +86,18 @@ class TextToSignRequest(BaseModel):
     text: str = Field(..., min_length=1, max_length=2000)
 
 
+class TextToSignVideoPlanRequest(BaseModel):
+    text: str = Field(..., min_length=1, max_length=2000)
+    dictionary_manifest: str = Field(
+        default=os.path.join("datasets", "sign_dictionary", "manifest.csv"),
+        description="CSV or JSON dictionary manifest for concatenative synthesis",
+    )
+    strict_manifest: bool = Field(
+        default=False,
+        description="When true, return error if dictionary manifest is missing.",
+    )
+
+
 class MotionRequest(BaseModel):
     tokens: List[str] = Field(default_factory=list)
     frames: int = Field(default=30, ge=1, le=240)
@@ -377,6 +389,37 @@ async def text_to_sign(data: TextToSignRequest):
     text = data.text
     tokens = realtime.text_to_sign(text)
     return {"tokens": tokens}
+
+
+@app.post("/translate/text-to-sign-video-plan")
+async def text_to_sign_video_plan(data: TextToSignVideoPlanRequest):
+    """
+    Build concatenative clip plan for sentence-level sign video synthesis.
+    """
+    try:
+        from nlp_translation.concatenative_synthesis import ConcatenativeSynthesis
+
+        tokens = realtime.text_to_sign(data.text)
+        if isinstance(tokens, str):
+            tokens = [t for t in tokens.split() if t.strip()]
+        if not isinstance(tokens, list):
+            tokens = []
+
+        synth = ConcatenativeSynthesis(
+            dictionary_manifest=data.dictionary_manifest,
+            strict_exists=data.strict_manifest,
+        )
+        planned = synth.build_plan(tokens)
+        return {
+            "text": data.text,
+            "tokens": tokens,
+            "dictionary_manifest": data.dictionary_manifest,
+            **planned,
+        }
+    except FileNotFoundError as exc:
+        raise HTTPException(status_code=404, detail=str(exc))
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"Concatenative planning failed: {exc}")
 
 
 @app.post("/generate/motion")

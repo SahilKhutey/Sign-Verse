@@ -21,6 +21,13 @@ This document is based on the current code in the repository (not on `docs/*.md`
   - Image ASL classifier: `ai_models/gesture_recognition/cnn_asl.py`, `training/train_asl_cnn_keras.py`
   - Video isolated sign classifier: `ai_models/gesture_recognition/video_lstm_keras.py`
   - Video data pipeline: `training/data_pipeline/video_to_frames.py`, `training/extract_cnn_features_keras.py`, `training/train_video_lstm_keras.py`
+- Concatenative sentence-video synthesis:
+  - `nlp_translation/concatenative_synthesis.py`
+  - `training/data_pipeline/build_sign_video_dictionary.py`
+  - `training/data_pipeline/generate_synthetic_sign_video_pairs.py`
+- Video embedding extraction for training:
+  - `vision_pipeline/video_embedding.py`
+  - `training/data_pipeline/extract_video_embeddings.py`
 - Foundation gesture-token transformer:
   - `models/sign_foundation_transformer.py` (`SignFoundationModel`)
   - Training: `training/train_foundation_model.py` (uses synthetic tokens if no data)

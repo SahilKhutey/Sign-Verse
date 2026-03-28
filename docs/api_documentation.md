@@ -125,6 +125,32 @@ Returns:
 { "tokens": ["I", "GOING", "SCHOOL", "TOMORROW"] }
 ```
 
+### `POST /translate/text-to-sign-video-plan`
+
+Builds concatenative clip plan for sentence-level sign video synthesis.
+
+Accepts:
+```json
+{
+  "text": "hello how are you",
+  "dictionary_manifest": "datasets/sign_dictionary/manifest.csv",
+  "strict_manifest": false
+}
+```
+
+Returns (shape):
+```json
+{
+  "text": "hello how are you",
+  "tokens": ["HELLO", "HOW", "YOU"],
+  "plan": [
+    {"token": "HELLO", "found": true, "video_path": "..."}
+  ],
+  "coverage": 1.0,
+  "missing_tokens": []
+}
+```
+
 ### `POST /generate/motion`
 
 Accepts:

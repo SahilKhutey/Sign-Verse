@@ -93,6 +93,28 @@ and LSTM classifier.
 .\venv\Scripts\python.exe training\train_video_lstm_keras.py --manifest training-data\video_features_manifest.csv --save-model models\video_lstm.h5 --save-best-model models\video_lstm_best.h5 --save-labels models\video_lstm_labels.json --eval-report reports\video_lstm_eval.json
 ```
 
+## Optional Concatenative Synthetic Video Pipeline
+
+This optional path builds sentence-level synthetic sign videos from a token->clip dictionary.
+
+1. Build dictionary manifest:
+
+```powershell
+.\venv\Scripts\python.exe training\data_pipeline\build_sign_video_dictionary.py --clips-root datasets\sign_dictionary\clips --output-manifest datasets\sign_dictionary\manifest.csv
+```
+
+2. Generate synthetic text/gloss->video pairs:
+
+```powershell
+.\venv\Scripts\python.exe training\data_pipeline\generate_synthetic_sign_video_pairs.py --pairs-csv datasets\text_sign_pairs\expanded_pairs.csv --dictionary-manifest datasets\sign_dictionary\manifest.csv --output-dir datasets\synthetic_sentence_videos --output-manifest training-data\synthetic_sign_video_pairs.csv --min-coverage 0.6 --max-samples 500
+```
+
+3. Extract MediaPipe video embeddings:
+
+```powershell
+.\venv\Scripts\python.exe training\data_pipeline\extract_video_embeddings.py --input-dir datasets\isolated_videos --output-dir training-data\video_embeddings --manifest training-data\video_embeddings_manifest.csv
+```
+
 ## Configuration
 
 Primary config:

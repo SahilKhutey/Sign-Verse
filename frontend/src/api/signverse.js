@@ -37,6 +37,14 @@ export function textToSign(text) {
   return inference.post('/translate/text-to-sign', { text }).then(r => r.data)
 }
 
+export function textToSignVideoPlan(text, dictionaryManifest, strictManifest = false) {
+  return inference.post('/translate/text-to-sign-video-plan', {
+    text,
+    dictionary_manifest: dictionaryManifest,
+    strict_manifest: strictManifest,
+  }).then(r => r.data)
+}
+
 export function signToText(sequence) {
   return inference.post('/translate/sign-to-text', { sequence }).then(r => r.data)
 }
