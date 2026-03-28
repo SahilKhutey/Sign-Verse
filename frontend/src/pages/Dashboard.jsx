@@ -255,6 +255,9 @@ const Dashboard = () => {
             </p>
           ) : (
             <div className="space-y-4">
+              <p className="text-xs text-slate-400">
+                Internal admin feature. Use only in trusted environments.
+              </p>
               <div className="grid grid-cols-2 gap-3 text-sm">
                 <div className="bg-slate-900/40 border border-slate-800 rounded-xl p-3">
                   <div className="text-xs text-slate-400">State</div>

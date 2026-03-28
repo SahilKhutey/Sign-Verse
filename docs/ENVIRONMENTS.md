@@ -20,6 +20,9 @@ This repo uses simple `.env` profiles to separate dev, staging, and production.
 
 - `VITE_BACKEND_URL`
 - `VITE_INFERENCE_URL`
+- `VITE_INFERENCE_WS`
+- `VITE_STREAM_TOKEN`
+- `VITE_ADMIN_TOKEN` (optional; only for internal admin dashboard controls)
 
 ## Usage
 
