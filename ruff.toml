@@ -1,0 +1,13 @@
+[lint]
+select = ["E", "F", "W"]
+exclude = [
+  "datasets",
+  "models",
+  "logs",
+  "wandb_runs",
+  "training-data",
+  "frontend/node_modules",
+  "venv",
+]
+
+line-length = 100
