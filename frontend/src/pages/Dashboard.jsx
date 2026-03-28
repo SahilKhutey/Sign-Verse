@@ -24,6 +24,7 @@ const Dashboard = () => {
 
   const statusText = healthError ? 'Degraded' : 'Healthy';
   const statusColor = healthError ? 'text-amber-400' : 'text-emerald-400';
+  const env = import.meta.env.MODE || 'development';
 
   return (
     <motion.div 
@@ -34,6 +35,7 @@ const Dashboard = () => {
       <header className="flex flex-col gap-2">
         <h1 className="text-4xl font-bold">Platform Overview</h1>
         <p className="text-slate-400">Welcome back! Here's your translation activity at a glance.</p>
+        <div className="text-xs text-slate-500">Environment: {env}</div>
       </header>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">

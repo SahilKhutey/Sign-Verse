@@ -67,3 +67,14 @@ services:
       - "3000:3000"
     depends_on:
       - monitoring
+
+  # Frontend (static)
+  frontend:
+    build:
+      context: .
+      dockerfile: deployment/docker/Dockerfile.frontend
+      args:
+        VITE_BACKEND_URL: https://signverse.ai
+        VITE_INFERENCE_URL: https://inference.signverse.ai
+    ports:
+      - "80:80"
