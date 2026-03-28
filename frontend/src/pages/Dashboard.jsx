@@ -1,7 +1,13 @@
 import React, { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
 import { Activity, Users, Shield, Zap, TrendingUp, Clock } from 'lucide-react';
-import { getBackendHealth, getDashboardJson, getInferenceHealth } from '../api/signverse';
+import {
+  getBackendHealth,
+  getDashboardJson,
+  getInferenceHealth,
+  getTextGlossPipelineStatus,
+  triggerTextGlossPipeline,
+} from '../api/signverse';
 
 const Dashboard = () => {
   const [backendHealth, setBackendHealth] = useState(null);
@@ -9,6 +15,9 @@ const Dashboard = () => {
   const [dashboardJson, setDashboardJson] = useState(null);
   const [healthError, setHealthError] = useState(null);
   const [dashboardError, setDashboardError] = useState(null);
+  const [pipelineStatus, setPipelineStatus] = useState(null);
+  const [pipelineError, setPipelineError] = useState(null);
+  const [triggeringPipeline, setTriggeringPipeline] = useState(false);
 
   useEffect(() => {
     let mounted = true;
@@ -28,8 +37,37 @@ const Dashboard = () => {
     return () => { mounted = false; };
   }, []);
 
+  useEffect(() => {
+    let alive = true;
+    const hasAdminToken = Boolean(import.meta.env.VITE_ADMIN_TOKEN);
+    if (!hasAdminToken) {
+      return () => { alive = false; };
+    }
+
+    const fetchStatus = () => {
+      getTextGlossPipelineStatus()
+        .then((data) => {
+          if (!alive) return;
+          setPipelineStatus(data);
+          setPipelineError(null);
+        })
+        .catch((err) => {
+          if (!alive) return;
+          setPipelineError(err?.message || 'Failed to load pipeline status');
+        });
+    };
+
+    fetchStatus();
+    const timer = setInterval(fetchStatus, 5000);
+    return () => {
+      alive = false;
+      clearInterval(timer);
+    };
+  }, []);
+
   const statusColor = healthError ? 'text-amber-400' : 'text-emerald-400';
   const env = import.meta.env.MODE || 'development';
+  const hasAdminToken = Boolean(import.meta.env.VITE_ADMIN_TOKEN);
   const registrySnapshot = dashboardJson?.model_registry;
   const nlpEval = dashboardJson?.nlp_eval;
   const datasetReport = dashboardJson?.text_gloss_dataset;
@@ -46,6 +84,26 @@ const Dashboard = () => {
         warnings: datasetReport.warnings || [],
       }
     : null;
+
+  const runPipeline = async () => {
+    if (!hasAdminToken || triggeringPipeline) return;
+    try {
+      setTriggeringPipeline(true);
+      setPipelineError(null);
+      await triggerTextGlossPipeline({
+        curriculum: true,
+        augment: true,
+        fail_on_warnings: true,
+        register: true,
+      });
+      const status = await getTextGlossPipelineStatus();
+      setPipelineStatus(status);
+    } catch (err) {
+      setPipelineError(err?.message || 'Failed to trigger pipeline');
+    } finally {
+      setTriggeringPipeline(false);
+    }
+  };
 
   return (
     <motion.div 
@@ -169,7 +227,7 @@ const Dashboard = () => {
                   <div className="text-xs text-slate-400">Avg Lengths</div>
                   <div className="text-sm text-slate-200">
                     {datasetSummary && datasetSummary.textLen && datasetSummary.glossLen
-                      ? `Text ${datasetSummary.textLen.avg} • Gloss ${datasetSummary.glossLen.avg}`
+                      ? `Text ${datasetSummary.textLen.avg} | Gloss ${datasetSummary.glossLen.avg}`
                       : '--'}
                   </div>
                 </div>
@@ -182,6 +240,58 @@ const Dashboard = () => {
               <pre className="text-xs text-slate-200 bg-slate-900/40 border border-slate-800 rounded-xl p-4 overflow-auto max-h-64">
                 {datasetReport ? JSON.stringify(datasetReport, null, 2) : 'No dataset report yet.'}
               </pre>
+            </div>
+          )}
+        </div>
+
+        <div className="glass-card p-8">
+          <h3 className="text-xl font-semibold mb-6 flex items-center gap-2">
+            <Shield className="text-indigo-400" size={24} />
+            Admin Pipeline Control
+          </h3>
+          {!hasAdminToken ? (
+            <p className="text-sm text-amber-400">
+              Set <code>VITE_ADMIN_TOKEN</code> to enable trigger and status polling.
+            </p>
+          ) : (
+            <div className="space-y-4">
+              <div className="grid grid-cols-2 gap-3 text-sm">
+                <div className="bg-slate-900/40 border border-slate-800 rounded-xl p-3">
+                  <div className="text-xs text-slate-400">State</div>
+                  <div className="text-lg font-semibold">{pipelineStatus?.state || 'unknown'}</div>
+                </div>
+                <div className="bg-slate-900/40 border border-slate-800 rounded-xl p-3">
+                  <div className="text-xs text-slate-400">Run ID</div>
+                  <div className="text-sm text-slate-200">{pipelineStatus?.run_id || '--'}</div>
+                </div>
+                <div className="bg-slate-900/40 border border-slate-800 rounded-xl p-3">
+                  <div className="text-xs text-slate-400">Started</div>
+                  <div className="text-sm text-slate-200">{pipelineStatus?.started_at || '--'}</div>
+                </div>
+                <div className="bg-slate-900/40 border border-slate-800 rounded-xl p-3">
+                  <div className="text-xs text-slate-400">Finished</div>
+                  <div className="text-sm text-slate-200">{pipelineStatus?.finished_at || '--'}</div>
+                </div>
+              </div>
+              {pipelineError && (
+                <div className="bg-amber-500/10 border border-amber-500/30 rounded-xl p-3 text-xs text-amber-200">
+                  {pipelineError}
+                </div>
+              )}
+              <div className="flex gap-3">
+                <button
+                  className="btn-primary"
+                  disabled={triggeringPipeline || pipelineStatus?.state === 'running' || pipelineStatus?.state === 'queued'}
+                  onClick={runPipeline}
+                >
+                  {triggeringPipeline ? 'Queueing...' : 'Run Text-Gloss Pipeline'}
+                </button>
+              </div>
+              {pipelineStatus?.log_tail && (
+                <pre className="text-xs text-slate-200 bg-slate-900/40 border border-slate-800 rounded-xl p-4 overflow-auto max-h-64">
+                  {pipelineStatus.log_tail}
+                </pre>
+              )}
             </div>
           )}
         </div>

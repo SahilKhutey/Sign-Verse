@@ -74,6 +74,7 @@ Backend:
 Frontend:
 - `VITE_BACKEND_URL`
 - `VITE_INFERENCE_URL`
+- `VITE_ADMIN_TOKEN` (required only for dashboard admin controls)
 
 See `.env.example` for a full template.
 See `docs/ENVIRONMENTS.md` for environment profiles.
@@ -120,6 +121,7 @@ To trigger the dataset build + training pipeline from the backend:
 - Set `ADMIN_TOKEN` in env.
 - Call `POST /admin/pipeline/text-gloss` with header `x-admin-token`.
 - Check run progress at `GET /admin/pipeline/text-gloss/status` with header `x-admin-token`.
+- Optional dashboard control: set `VITE_ADMIN_TOKEN` in frontend env to run/poll from UI.
 
 Training also writes an evaluation report to:
 ```

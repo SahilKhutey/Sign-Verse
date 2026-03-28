@@ -2,6 +2,7 @@ import axios from 'axios'
 
 const backendBase = import.meta.env.VITE_BACKEND_URL || 'http://localhost:8001'
 const inferenceBase = import.meta.env.VITE_INFERENCE_URL || 'http://localhost:8000'
+const adminToken = import.meta.env.VITE_ADMIN_TOKEN || ''
 
 const backend = axios.create({
   baseURL: backendBase,
@@ -19,6 +20,13 @@ export function getBackendHealth() {
 
 export function getDashboardJson() {
   return backend.get('/dashboard/json').then(r => r.data)
+}
+
+function adminHeaders() {
+  if (!adminToken) {
+    throw new Error('Missing VITE_ADMIN_TOKEN')
+  }
+  return { 'x-admin-token': adminToken }
 }
 
 export function getInferenceHealth() {
@@ -48,5 +56,17 @@ export function getHistory(userId, token) {
     headers: {
       Authorization: `Bearer ${token}`,
     },
+  }).then(r => r.data)
+}
+
+export function getTextGlossPipelineStatus() {
+  return backend.get('/admin/pipeline/text-gloss/status', {
+    headers: adminHeaders(),
+  }).then(r => r.data)
+}
+
+export function triggerTextGlossPipeline(payload = {}) {
+  return backend.post('/admin/pipeline/text-gloss', payload, {
+    headers: adminHeaders(),
   }).then(r => r.data)
 }
