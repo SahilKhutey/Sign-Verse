@@ -45,6 +45,9 @@ The web UI uses WebSocket streaming:
 Use the debug endpoint to get annotated frames:
 `POST /vision/extract-debug` returns an `image_b64` overlay.
 
+For temporal offline checks:
+`POST /gesture/classify-sequence` with `{"sequence": [[...], ...]}`.
+
 ## Tracking Guidelines
 
 1. **Lighting**

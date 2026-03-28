@@ -74,6 +74,10 @@ class KeypointRequest(BaseModel):
     keypoints: conlist(float, min_length=1) = Field(..., description="Flattened keypoint vector")
 
 
+class KeypointSequenceRequest(BaseModel):
+    sequence: List[List[float]] = Field(..., description="Sequence of keypoint vectors")
+
+
 class SignToTextRequest(BaseModel):
     sequence: List[List[float]] = Field(..., description="Sequence of keypoint frames")
 
@@ -212,6 +216,19 @@ async def classify_gesture(data: KeypointRequest):
     label = loader.gesture_label(gesture_id)
     if label:
         result["gesture_label"] = label
+    return result
+
+
+@app.post("/gesture/classify-sequence")
+async def classify_gesture_sequence(data: KeypointSequenceRequest):
+    """Classify gesture from a temporal keypoint sequence."""
+    sequence = data.sequence
+    result = realtime.classify_gesture_sequence(sequence)
+    gesture_id = result.get("gesture_id")
+    label = loader.gesture_label(gesture_id)
+    if label:
+        result["gesture_label"] = label
+    result["sequence_length"] = len(sequence)
     return result
 
 

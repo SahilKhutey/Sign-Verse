@@ -33,6 +33,10 @@ export function signToText(sequence) {
   return inference.post('/translate/sign-to-text', { sequence }).then(r => r.data)
 }
 
+export function classifyGestureSequence(sequence) {
+  return inference.post('/gesture/classify-sequence', { sequence }).then(r => r.data)
+}
+
 export function speechToSign(file) {
   const form = new FormData()
   form.append('file', file)
