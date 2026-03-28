@@ -21,6 +21,14 @@ const LiveTranslator = () => {
   const [smoothLabel, setSmoothLabel] = useState('Detecting...');
   const [latency, setLatency] = useState(null);
   const [confidencePct, setConfidencePct] = useState(null);
+  const [droppedFrames, setDroppedFrames] = useState(0);
+  const [serverTs, setServerTs] = useState(null);
+  const [streamFps, setStreamFps] = useState(10);
+  const [streamWindow, setStreamWindow] = useState(8);
+  const [minConfidence, setMinConfidence] = useState(0.4);
+  const [maxFrameBytes, setMaxFrameBytes] = useState(1000000);
+  const [jpegQuality, setJpegQuality] = useState(0.6);
+  const [streamError, setStreamError] = useState(null);
 
   useEffect(() => {
     getInferenceHealth()
@@ -51,11 +59,25 @@ const LiveTranslator = () => {
     wsRef.current = ws;
     ws.onopen = () => {
       setStreamStatus('Online');
-      ws.send(JSON.stringify({ type: 'config', fps: 10, window: 8 }));
+      setStreamError(null);
+      ws.send(JSON.stringify({
+        type: 'config',
+        fps: streamFps,
+        window: streamWindow,
+        min_confidence: minConfidence,
+        max_frame_bytes: maxFrameBytes,
+      }));
     };
     ws.onmessage = (evt) => {
       try {
         const data = JSON.parse(evt.data);
+        if (data.error) {
+          setStreamError(`${data.error}: ${data.detail || 'unknown'}`);
+          return;
+        }
+        if (data.type === 'config_ack') {
+          return;
+        }
         if (data.gesture_label) {
           setTokens([data.gesture_label]);
           setLastLabel(data.gesture_label);
@@ -77,17 +99,20 @@ const LiveTranslator = () => {
             setSmoothLabel(best);
             return next;
           });
-          if (data.latency_ms !== undefined) setLatency(data.latency_ms);
-          if (data.confidence !== undefined && data.confidence !== null) {
-            setConfidencePct(Math.round(data.confidence * 100));
-          }
         }
+        if (data.latency_ms !== undefined) setLatency(data.latency_ms);
+        if (data.confidence !== undefined && data.confidence !== null) {
+          setConfidencePct(Math.round(data.confidence * 100));
+        }
+        if (data.dropped_frames !== undefined) setDroppedFrames(data.dropped_frames);
+        if (data.server_ts !== undefined) setServerTs(data.server_ts);
       } catch {}
     };
     ws.onclose = () => setStreamStatus('Offline');
 
     // frame capture loop
     let lastTime = performance.now();
+    const captureInterval = Math.round(1000 / Math.max(1, streamFps));
     const loop = () => {
       if (!videoRef.current || !canvasRef.current || ws.readyState !== 1) {
         return;
@@ -99,12 +124,12 @@ const LiveTranslator = () => {
       ctx.drawImage(videoRef.current, 0, 0, canvas.width, canvas.height);
       canvas.toBlob((blob) => {
         if (blob) ws.send(blob);
-      }, 'image/jpeg', 0.6);
+      }, 'image/jpeg', Math.min(0.95, Math.max(0.1, jpegQuality)));
 
       const now = performance.now();
       setFps(Math.round(1000 / Math.max(1, now - lastTime)));
       lastTime = now;
-      setTimeout(loop, 100);
+      setTimeout(loop, captureInterval);
     };
     setTimeout(loop, 200);
   };
@@ -112,6 +137,7 @@ const LiveTranslator = () => {
   const stopStream = () => {
     if (wsRef.current) wsRef.current.close();
     setStreamStatus('Offline');
+    setStreamError(null);
   };
 
   return (
@@ -165,6 +191,15 @@ const LiveTranslator = () => {
           <div className="text-xs text-slate-500 mt-1">Stream: {streamStatus}</div>
           {confidencePct !== null && (
             <div className="text-xs text-slate-500 mt-1">Confidence: {confidencePct}%</div>
+          )}
+          {streamError && (
+            <div className="text-xs text-amber-400 mt-1">Stream error: {streamError}</div>
+          )}
+          {droppedFrames > 0 && (
+            <div className="text-xs text-slate-500 mt-1">Dropped frames: {droppedFrames}</div>
+          )}
+          {serverTs && (
+            <div className="text-xs text-slate-500 mt-1">Server time: {serverTs}</div>
           )}
         </div>
       </div>
@@ -243,13 +278,72 @@ const LiveTranslator = () => {
 
         <div className="glass-card p-6">
           <h3 className="text-lg font-semibold mb-4">Live Stream</h3>
+          <div className="grid grid-cols-2 gap-3 text-xs mb-4">
+            <label className="flex flex-col gap-1 text-slate-400">
+              FPS
+              <input
+                type="number"
+                min="1"
+                max="60"
+                value={streamFps}
+                onChange={(e) => setStreamFps(Number(e.target.value))}
+                className="bg-slate-900 border border-slate-700 rounded-lg p-2 text-slate-200"
+              />
+            </label>
+            <label className="flex flex-col gap-1 text-slate-400">
+              Smoothing Window
+              <input
+                type="number"
+                min="1"
+                max="60"
+                value={streamWindow}
+                onChange={(e) => setStreamWindow(Number(e.target.value))}
+                className="bg-slate-900 border border-slate-700 rounded-lg p-2 text-slate-200"
+              />
+            </label>
+            <label className="flex flex-col gap-1 text-slate-400">
+              Min Confidence
+              <input
+                type="number"
+                step="0.05"
+                min="0"
+                max="1"
+                value={minConfidence}
+                onChange={(e) => setMinConfidence(Number(e.target.value))}
+                className="bg-slate-900 border border-slate-700 rounded-lg p-2 text-slate-200"
+              />
+            </label>
+            <label className="flex flex-col gap-1 text-slate-400">
+              JPEG Quality
+              <input
+                type="number"
+                step="0.05"
+                min="0.1"
+                max="0.95"
+                value={jpegQuality}
+                onChange={(e) => setJpegQuality(Number(e.target.value))}
+                className="bg-slate-900 border border-slate-700 rounded-lg p-2 text-slate-200"
+              />
+            </label>
+            <label className="flex flex-col gap-1 text-slate-400">
+              Max Frame Bytes
+              <input
+                type="number"
+                min="10000"
+                max="5000000"
+                value={maxFrameBytes}
+                onChange={(e) => setMaxFrameBytes(Number(e.target.value))}
+                className="bg-slate-900 border border-slate-700 rounded-lg p-2 text-slate-200"
+              />
+            </label>
+          </div>
           <div className="flex gap-2">
             <button className="btn-primary" onClick={startStream}>Start Stream</button>
             <button className="bg-slate-800 text-slate-200 px-4 py-2 rounded-xl" onClick={stopStream}>Stop</button>
           </div>
           {labelHistory.length > 0 && (
             <div className="text-xs text-slate-400 mt-3">
-              Recent: {labelHistory.join(' · ')}
+              Recent: {labelHistory.join(' | ')}
             </div>
           )}
         </div>
