@@ -88,11 +88,15 @@ python training/data_pipeline/build_text_gloss_dataset.py
 Outputs:
 ```
 datasets/text_sign_pairs/expanded_pairs.csv
+datasets/text_sign_pairs/train.csv
+datasets/text_sign_pairs/val.csv
+datasets/text_sign_pairs/test.csv
+reports/text_gloss_dataset_report.json
 ```
 
 ### Train Text↔Gloss Models
 ```
-python training/train_text_gloss.py --train-csv datasets/text_sign_pairs/expanded_pairs.csv --val-csv datasets/text_sign_pairs/validation_data.csv --curriculum --augment
+python training/train_text_gloss.py --train-csv datasets/text_sign_pairs/train.csv --val-csv datasets/text_sign_pairs/val.csv --curriculum --augment
 ```
 
 Outputs:
@@ -102,9 +106,14 @@ Outputs:
 
 Optional:
 ```
-python training/train_text_gloss.py --train-csv datasets/text_sign_pairs/expanded_pairs.csv --val-csv datasets/text_sign_pairs/validation_data.csv --curriculum --augment --register
+python training/train_text_gloss.py --train-csv datasets/text_sign_pairs/train.csv --val-csv datasets/text_sign_pairs/val.csv --curriculum --augment --register
 ```
 This registers the best checkpoints into the model registry under `deployment/model_registry/`.
+
+### One-Command Pipeline
+```
+python training/run_text_gloss_pipeline.py --curriculum --augment --register
+```
 
 Training also writes an evaluation report to:
 ```
