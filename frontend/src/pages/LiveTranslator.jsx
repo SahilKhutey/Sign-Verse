@@ -32,6 +32,7 @@ const LiveTranslator = () => {
   const [useSequence, setUseSequence] = useState(false);
   const [sequenceWindow, setSequenceWindow] = useState(30);
   const [sequenceReady, setSequenceReady] = useState(false);
+  const [sequenceLength, setSequenceLength] = useState(0);
 
   useEffect(() => {
     getInferenceHealth()
@@ -112,6 +113,7 @@ const LiveTranslator = () => {
         if (data.dropped_frames !== undefined) setDroppedFrames(data.dropped_frames);
         if (data.server_ts !== undefined) setServerTs(data.server_ts);
         if (data.sequence_ready !== undefined) setSequenceReady(data.sequence_ready);
+        if (data.sequence_length !== undefined) setSequenceLength(data.sequence_length);
       } catch {}
     };
     ws.onclose = () => setStreamStatus('Offline');
@@ -196,7 +198,7 @@ const LiveTranslator = () => {
           <div className="text-xs text-slate-500 mt-2">Inference: {inferenceStatus}</div>
           <div className="text-xs text-slate-500 mt-1">Stream: {streamStatus}</div>
           <div className="text-xs text-slate-500 mt-1">
-            Sequence: {useSequence ? (sequenceReady ? 'Ready' : 'Buffering') : 'Off'}
+            Sequence: {useSequence ? (sequenceReady ? `Ready (${sequenceLength})` : `Buffering (${sequenceLength})`) : 'Off'}
           </div>
           {confidencePct !== null && (
             <div className="text-xs text-slate-500 mt-1">Confidence: {confidencePct}%</div>

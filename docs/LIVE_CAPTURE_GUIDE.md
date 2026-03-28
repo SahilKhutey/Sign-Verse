@@ -38,6 +38,7 @@ The web UI uses WebSocket streaming:
 - The server enforces a 1MB payload limit and FPS throttling.
 - If `STREAM_TOKEN_REQUIRED=true`, pass `VITE_STREAM_TOKEN` for authorization.
 - Sequence mode buffers multiple frames to enable temporal models (enable in UI).
+- Sequence mode now applies to binary webcam frames, base64 frames, and raw keypoint frames.
 
 ## Debug Overlay
 

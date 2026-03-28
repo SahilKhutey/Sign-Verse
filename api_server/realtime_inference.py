@@ -14,7 +14,6 @@ class RealtimeInference:
         self.loader = loader
         self._feature_extractor = None
         self._translator = None
-        self._sequence_buffer = None
 
     @property
     def feature_extractor(self):
@@ -59,6 +58,42 @@ class RealtimeInference:
         kp = kp[:expected_dim]
         # Expand to (1, seq, expected_dim) using single frame
         seq = torch.tensor(kp).unsqueeze(0).unsqueeze(0).expand(1, 30, expected_dim)
+        with torch.no_grad():
+            logits = model(seq)
+            probs = torch.softmax(logits, dim=1)
+        pred = logits.argmax(1).item()
+        conf = float(probs[0, pred].item()) if probs.numel() > 0 else None
+        return {"gesture_id": pred, "confidence": conf}
+
+    def classify_gesture_sequence(self, sequence):
+        """
+        Classify a full keypoint sequence for temporal recognition.
+
+        Args:
+            sequence: list/array shaped (T, D)
+        """
+        import torch
+        model = self.loader.get_gesture_model()
+        if not sequence:
+            return {"gesture_id": None, "confidence": None}
+
+        seq_np = np.array(sequence, dtype=np.float32)
+        if seq_np.ndim == 1:
+            seq_np = seq_np.reshape(1, -1)
+        if seq_np.ndim != 2:
+            return {"gesture_id": None, "confidence": None}
+
+        expected_dim = getattr(getattr(model, "lstm", None), "input_size", TWO_HANDS_DIM)
+        expected_dim = int(expected_dim or TWO_HANDS_DIM)
+        if seq_np.shape[-1] == FEATURE_DIM_225 and expected_dim == TWO_HANDS_DIM:
+            seq_np = seq_np[:, HANDS_SLICE_225]
+        if seq_np.shape[-1] < expected_dim:
+            pad = expected_dim - seq_np.shape[-1]
+            seq_np = np.pad(seq_np, ((0, 0), (0, pad)))
+        elif seq_np.shape[-1] > expected_dim:
+            seq_np = seq_np[:, :expected_dim]
+
+        seq = torch.tensor(seq_np).unsqueeze(0)  # (1, T, D)
         with torch.no_grad():
             logits = model(seq)
             probs = torch.softmax(logits, dim=1)

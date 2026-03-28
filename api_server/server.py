@@ -358,7 +358,20 @@ async def websocket_stream(ws: WebSocket):
                 try:
                     features = realtime.extract_features_from_bytes(image_bytes)
                     start = time.time()
-                    result = realtime.classify_gesture(features.tolist())
+                    if use_sequence:
+                        sequence = sequence_buffer.update(features.tolist())
+                        if sequence is not None:
+                            result = realtime.classify_gesture_sequence(sequence)
+                            result["sequence_ready"] = True
+                            result["sequence_length"] = len(sequence)
+                        else:
+                            result = realtime.classify_gesture(features.tolist())
+                            result["sequence_ready"] = False
+                            result["sequence_length"] = len(sequence_buffer.buffer)
+                    else:
+                        result = realtime.classify_gesture(features.tolist())
+                        result["sequence_ready"] = False
+                        result["sequence_length"] = 0
                     latency_ms = int((time.time() - start) * 1000)
                     result["frame_id"] = int(time.time() * 1000)
                     result["latency_ms"] = latency_ms
@@ -367,9 +380,17 @@ async def websocket_stream(ws: WebSocket):
                 except Exception as e:
                     await ws.send_json({"error": "frame_decode_failed", "detail": str(e)})
                     continue
+                gesture_id = result.get("gesture_id")
                 conf = result.get("confidence")
                 if conf is not None and conf < min_confidence:
+                    gesture_id = None
                     result["gesture_id"] = None
+                smooth_id = smoother.update(gesture_id)
+                if smooth_id is not None:
+                    result["gesture_id"] = smooth_id
+                    label = loader.gesture_label(smooth_id)
+                    if label:
+                        result["gesture_label"] = label
                 await ws.send_json(result)
                 continue
             else:
@@ -414,7 +435,20 @@ async def websocket_stream(ws: WebSocket):
                         await ws.send_json({"error": "frame_too_large", "detail": f"max {max_frame_bytes} bytes"})
                         continue
                     features = realtime.extract_features_from_bytes(image_bytes)
-                    result = realtime.classify_gesture(features.tolist())
+                    if use_sequence:
+                        sequence = sequence_buffer.update(features.tolist())
+                        if sequence is not None:
+                            result = realtime.classify_gesture_sequence(sequence)
+                            result["sequence_ready"] = True
+                            result["sequence_length"] = len(sequence)
+                        else:
+                            result = realtime.classify_gesture(features.tolist())
+                            result["sequence_ready"] = False
+                            result["sequence_length"] = len(sequence_buffer.buffer)
+                    else:
+                        result = realtime.classify_gesture(features.tolist())
+                        result["sequence_ready"] = False
+                        result["sequence_length"] = 0
                     result["frame_id"] = data.get("frame_id", 0)
                     result["server_ts"] = int(time.time() * 1000)
                 except Exception as e:
@@ -426,8 +460,15 @@ async def websocket_stream(ws: WebSocket):
                     sequence = sequence_buffer.update(keypoints)
                     data["use_sequence"] = True
                     data["sequence_ready"] = sequence is not None
-                    data["sequence_length"] = len(sequence) if sequence is not None else 0
+                    data["sequence_length"] = len(sequence) if sequence is not None else len(sequence_buffer.buffer)
                 result = realtime.process_stream_frame(data)
+                if use_sequence and data.get("sequence_ready"):
+                    seq_result = realtime.classify_gesture_sequence(sequence)
+                    result["gesture_id"] = seq_result.get("gesture_id")
+                    result["confidence"] = seq_result.get("confidence")
+                    label = loader.gesture_label(result.get("gesture_id"))
+                    if label:
+                        result["gesture_label"] = label
             gesture_id = result.get("gesture_id")
             conf = result.get("confidence")
             if conf is not None and conf < min_confidence:
