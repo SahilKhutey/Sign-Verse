@@ -218,6 +218,22 @@ class ModelLoader:
             )
         return self._models["asl_cnn"]
 
+    def get_video_lstm_model(self):
+        """
+        Optional video CNN+LSTM model for isolated sign recognition.
+        """
+        if "video_lstm" not in self._models:
+            from ai_models.gesture_recognition.video_lstm_keras import VideoLSTMClassifier
+
+            model_path = os.path.join(self.model_dir, "video_lstm.h5")
+            labels_path = os.path.join(self.model_dir, "video_lstm_labels.json")
+            self._models["video_lstm"] = VideoLSTMClassifier(
+                model_path=model_path,
+                labels_path=labels_path if os.path.exists(labels_path) else None,
+                max_frames=30,
+            )
+        return self._models["video_lstm"]
+
     def get_sign_transformer(self):
         if "sign_transformer" not in self._models:
             from ai_models.sign_transformer.train_transformer import SignTransformer

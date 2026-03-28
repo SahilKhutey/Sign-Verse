@@ -8,7 +8,13 @@ Usage:
 from __future__ import annotations
 
 import argparse
+import os
+import sys
+
 import cv2
+
+# Ensure project root is importable when script is run directly.
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
 from ai_models.gesture_recognition.cnn_asl import ASLCNNClassifier
 from gesture_recognition.utils.temporal_filter import TemporalFilter

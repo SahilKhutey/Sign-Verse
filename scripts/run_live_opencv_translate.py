@@ -9,6 +9,12 @@ Usage:
 """
 
 import argparse
+import os
+import sys
+
+# Ensure project root is importable when script is run directly.
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
+
 from vision_pipeline.live_capture import run_live, list_cameras
 
 

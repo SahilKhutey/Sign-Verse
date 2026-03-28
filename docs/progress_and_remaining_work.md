@@ -17,6 +17,10 @@ This document is based on the current code in the repository (not on `docs/*.md`
 - Gesture recognition model (sequence classifier):
   - `ai_models/gesture_recognition/model.py` (`GestureModel`)
   - `ai_models/gesture_recognition/train.py` exists (not reviewed line-by-line here), plus dataset + inference modules.
+- Optional Keras prototype paths:
+  - Image ASL classifier: `ai_models/gesture_recognition/cnn_asl.py`, `training/train_asl_cnn_keras.py`
+  - Video isolated sign classifier: `ai_models/gesture_recognition/video_lstm_keras.py`
+  - Video data pipeline: `training/data_pipeline/video_to_frames.py`, `training/extract_cnn_features_keras.py`, `training/train_video_lstm_keras.py`
 - Foundation gesture-token transformer:
   - `models/sign_foundation_transformer.py` (`SignFoundationModel`)
   - Training: `training/train_foundation_model.py` (uses synthetic tokens if no data)

@@ -261,6 +261,30 @@ async def classify_gesture_image_cnn(file: UploadFile, min_confidence: float = 0
         raise HTTPException(status_code=500, detail=f"ASL CNN inference failed: {exc}")
 
 
+@app.post("/gesture/classify-video-lstm")
+async def classify_gesture_video_lstm(file: UploadFile, min_confidence: float = 0.4):
+    """
+    Classify isolated sign from uploaded video using optional CNN+LSTM model.
+    """
+    if not file.content_type or not file.content_type.startswith("video/"):
+        if file.content_type != "application/octet-stream":
+            raise HTTPException(status_code=400, detail="Expected a video upload")
+    try:
+        video_bytes = await file.read()
+        if not video_bytes:
+            raise HTTPException(status_code=400, detail="Empty video file")
+        model = loader.get_video_lstm_model()
+        pred = model.predict_video_bytes(video_bytes)
+        conf = pred.get("confidence")
+        if conf is not None and float(conf) < float(min_confidence):
+            pred["label"] = None
+        return pred
+    except HTTPException:
+        raise
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"Video LSTM inference failed: {exc}")
+
+
 @app.post("/speech-to-sign/")
 async def speech_to_sign(file: UploadFile):
     """

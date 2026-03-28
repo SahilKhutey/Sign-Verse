@@ -41,6 +41,8 @@ This repository includes:
 Runs the core inference endpoints:
 - `POST /vision/extract`
 - `POST /gesture/classify`
+- `POST /gesture/classify-image-cnn`
+- `POST /gesture/classify-video-lstm`
 - `POST /translate/sign-to-text`
 - `POST /translate/text-to-sign`
 - `POST /translate/sign-to-speech`
@@ -130,6 +132,19 @@ Outputs:
 - `models/asl_cnn.h5`
 - `models/asl_cnn_labels.json`
 
+### Train Video CNN+LSTM (Optional Keras Path)
+Prototype-oriented isolated sign recognizer inspired by video-based SLR repos:
+```
+python training/data_pipeline/video_to_frames.py --input-dir datasets/isolated_videos --output-dir datasets/video_frames --metadata training-data/video_frames_manifest.csv
+python training/extract_cnn_features_keras.py --manifest training-data/video_frames_manifest.csv --output-dir training-data/video_features --output-manifest training-data/video_features_manifest.csv
+python training/train_video_lstm_keras.py --manifest training-data/video_features_manifest.csv --epochs 20 --save-model models/video_lstm.h5 --save-best-model models/video_lstm_best.h5 --save-labels models/video_lstm_labels.json --eval-report reports/video_lstm_eval.json
+```
+Outputs:
+- `models/video_lstm.h5`
+- `models/video_lstm_best.h5`
+- `models/video_lstm_labels.json`
+- `reports/video_lstm_eval.json`
+
 ### Admin Trigger (Backend)
 To trigger the dataset build + training pipeline from the backend:
 - Set `ADMIN_TOKEN` in env.
@@ -169,6 +184,11 @@ python scripts/run_live_opencv_translate.py --camera 0
 Run optional ASL CNN live interpreter:
 ```
 python scripts/run_asl_cnn_live.py --camera 0 --min-confidence 0.4
+```
+
+Run optional video classifier inference:
+```
+python scripts/run_video_lstm_inference.py --video path/to/sample.mp4 --min-confidence 0.4
 ```
 
 See `docs/LIVE_CAPTURE_GUIDE.md` for tracking tips.
@@ -227,3 +247,4 @@ See `docs/RELEASE_CHECKLIST.md` before shipping releases.
 
 More details in `docs/`.
 - `docs/ASL_CNN_INTEGRATION.md` for Keras CNN prototype flow.
+- `docs/VIDEO_LSTM_INTEGRATION.md` for Keras video CNN+LSTM prototype flow.

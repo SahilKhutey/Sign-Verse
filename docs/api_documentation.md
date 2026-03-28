@@ -58,6 +58,34 @@ Returns:
 Note:
 - `gesture_label` is returned when a `label_map.json` is available (from training preprocessing).
 
+### `POST /gesture/classify-image-cnn`
+
+Optional image-based ASL classifier (Keras).
+
+Accepts: multipart file upload (`image/*`).
+
+Query params:
+- `min_confidence` (default `0.4`)
+
+Returns:
+```json
+{ "class_id": 3, "label": "D", "confidence": 0.91 }
+```
+
+### `POST /gesture/classify-video-lstm`
+
+Optional isolated sign classifier using InceptionV3 features + LSTM (Keras).
+
+Accepts: multipart file upload (`video/*` or `application/octet-stream`).
+
+Query params:
+- `min_confidence` (default `0.4`)
+
+Returns:
+```json
+{ "class_id": 12, "label": "HELLO", "confidence": 0.86 }
+```
+
 ### `POST /analyze/frame`
 
 Single-shot helper: image frame -> keypoints -> gesture classification.

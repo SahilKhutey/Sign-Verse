@@ -70,6 +70,29 @@ You can also run trainers directly:
 .\venv\Scripts\python.exe training\train_diffusion.py
 ```
 
+## Optional Keras Video SLR Pipeline
+
+This optional path adds isolated video sign recognition with a CNN feature extractor
+and LSTM classifier.
+
+1. Convert videos to frames:
+
+```powershell
+.\venv\Scripts\python.exe training\data_pipeline\video_to_frames.py --input-dir datasets\isolated_videos --output-dir datasets\video_frames --metadata training-data\video_frames_manifest.csv
+```
+
+2. Extract InceptionV3 features:
+
+```powershell
+.\venv\Scripts\python.exe training\extract_cnn_features_keras.py --manifest training-data\video_frames_manifest.csv --output-dir training-data\video_features --output-manifest training-data\video_features_manifest.csv
+```
+
+3. Train LSTM:
+
+```powershell
+.\venv\Scripts\python.exe training\train_video_lstm_keras.py --manifest training-data\video_features_manifest.csv --save-model models\video_lstm.h5 --save-best-model models\video_lstm_best.h5 --save-labels models\video_lstm_labels.json --eval-report reports\video_lstm_eval.json
+```
+
 ## Configuration
 
 Primary config:
