@@ -5,6 +5,7 @@ Usage:
   python scripts/run_live_opencv_translate.py --camera 0
   python scripts/run_live_opencv_translate.py --list-cameras
   python scripts/run_live_opencv_translate.py --camera 1 --width 1280 --height 720 --fps 20 --flip
+  python scripts/run_live_opencv_translate.py --camera 0 --tts --tts-cooldown 2.0
 """
 
 import argparse
@@ -23,6 +24,8 @@ def main():
     parser.add_argument("--no-guides", action="store_true")
     parser.add_argument("--no-fps", action="store_true")
     parser.add_argument("--min-confidence", type=float, default=0.4)
+    parser.add_argument("--tts", action="store_true")
+    parser.add_argument("--tts-cooldown", type=float, default=2.0)
     args = parser.parse_args()
     if args.list_cameras:
         cams = list_cameras()
@@ -38,6 +41,8 @@ def main():
         show_fps=not args.no_fps,
         draw_guides=not args.no_guides,
         min_confidence=args.min_confidence,
+        tts=args.tts,
+        tts_cooldown=args.tts_cooldown,
     )
 
 

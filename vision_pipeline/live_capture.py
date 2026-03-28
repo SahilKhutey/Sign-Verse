@@ -31,6 +31,8 @@ class LiveCapture:
         show_fps: bool = True,
         draw_guides: bool = True,
         min_confidence: float = 0.4,
+        tts: bool = False,
+        tts_cooldown: float = 2.0,
     ):
         self.camera_index = camera_index
         self.window_name = window_name
@@ -45,6 +47,10 @@ class LiveCapture:
         self.loader = ModelLoader()
         self.realtime = RealtimeInference(self.loader)
         self.extractor = FeatureExtractor()
+        self.tts_enabled = tts
+        self.tts_cooldown = tts_cooldown
+        self._tts = None
+        self._last_spoken = 0.0
 
     def _apply_camera_settings(self, cap: cv2.VideoCapture) -> None:
         if self.width:
@@ -130,6 +136,18 @@ class LiveCapture:
                         2,
                     )
 
+                if self.tts_enabled and label:
+                    now = time.time()
+                    if (now - self._last_spoken) >= self.tts_cooldown:
+                        try:
+                            if self._tts is None:
+                                from ai_engine.modules.text_to_speech import TextToSpeech
+                                self._tts = TextToSpeech()
+                            self._tts.speak(label)
+                            self._last_spoken = now
+                        except Exception:
+                            pass
+
                 cv2.imshow(self.window_name, drawn)
                 if cv2.waitKey(1) & 0xFF == ord("q"):
                     break
@@ -161,6 +179,8 @@ def run_live(
     show_fps: bool = True,
     draw_guides: bool = True,
     min_confidence: float = 0.4,
+    tts: bool = False,
+    tts_cooldown: float = 2.0,
 ):
     LiveCapture(
         camera_index=camera_index,
@@ -172,4 +192,6 @@ def run_live(
         show_fps=show_fps,
         draw_guides=draw_guides,
         min_confidence=min_confidence,
+        tts=tts,
+        tts_cooldown=tts_cooldown,
     ).run()

@@ -47,3 +47,10 @@ class TextToSpeech:
 
         audio_b64 = base64.b64encode(audio_bytes).decode() if audio_bytes else None
         return {"audio_path": output_path, "audio_bytes": audio_bytes, "audio_b64": audio_b64}
+
+    def speak(self, text: str):
+        """Speak text aloud using the TTS engine."""
+        if not text:
+            return
+        self._engine.say(text)
+        self._engine.runAndWait()

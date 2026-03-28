@@ -16,6 +16,7 @@ Press `q` to exit.
 python scripts/run_live_opencv_translate.py --list-cameras
 python scripts/run_live_opencv_translate.py --camera 1 --width 1280 --height 720 --fps 20 --flip
 python scripts/run_live_opencv_translate.py --camera 0 --min-confidence 0.6 --no-guides
+python scripts/run_live_opencv_translate.py --camera 0 --tts --tts-cooldown 2.0
 ```
 
 Flags:
@@ -26,6 +27,8 @@ Flags:
 - `--min-confidence`: Hide labels below a confidence threshold.
 - `--no-guides`: Disable framing guides overlay.
 - `--no-fps`: Hide the FPS overlay.
+- `--tts`: Speak detected labels aloud (requires `pyttsx3`).
+- `--tts-cooldown`: Minimum seconds between spoken labels.
 
 ## Web Live Stream
 
