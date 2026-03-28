@@ -1,0 +1,20 @@
+FROM python:3.11-slim
+
+WORKDIR /app
+
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+
+COPY ai_engine/ ./ai_engine/
+COPY ai_models/ ./ai_models/
+COPY api_gateway/ ./api_gateway/
+COPY api_server/ ./api_server/
+COPY gesture_recognition/ ./gesture_recognition/
+COPY models/ ./models/
+COPY nlp_translation/ ./nlp_translation/
+COPY vision_pipeline/ ./vision_pipeline/
+COPY avatar_animation/ ./avatar_animation/
+
+EXPOSE 8000
+
+CMD ["uvicorn", "api_gateway.main:app", "--host", "0.0.0.0", "--port", "8000"]

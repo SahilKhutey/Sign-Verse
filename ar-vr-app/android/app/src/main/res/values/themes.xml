@@ -1,0 +1,12 @@
+<resources xmlns:tools="http://schemas.android.com/tools">
+
+    <style name="Theme.SignVerseLauncher" parent="android:Theme.Material.Light.NoActionBar">
+        <!-- Compose drives UI; keep a clean window theme. -->
+        <item name="android:statusBarColor" tools:targetApi="l">#00000000</item>
+        <item name="android:navigationBarColor" tools:targetApi="l">#00000000</item>
+        <item name="android:windowLightStatusBar" tools:targetApi="m">true</item>
+        <item name="android:windowLightNavigationBar" tools:targetApi="o_mr1">true</item>
+    </style>
+
+</resources>
+

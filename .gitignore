@@ -1,0 +1,54 @@
+# Virtual environment
+venv/
+.env
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+dist/
+build/
+
+# Models (large files)
+*.pt
+*.pth
+*.onnx
+*.h5
+models/
+
+# Data
+datasets/WLASL/
+datasets/RWTH_PHOENIX/
+datasets/AUTSL/
+datasets/LSA64/
+datasets/processed/
+datasets/gesture_tokens/
+datasets/pose_keypoints/
+datasets/raw_videos/
+datasets/isl_dataset/
+training-data/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Temp
+temp/
+*.log
+logs/
+wandb_runs/
+.pytest_cache/
+signverse.db
+exports/
+reports/
+
+# Docker
+.docker/
+
+# Frontend
+frontend/node_modules/

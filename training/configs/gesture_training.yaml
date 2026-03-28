@@ -1,0 +1,17 @@
+gesture_model:
+  # This file is optional; `training_config.yaml` is the primary config.
+  # Keep this as a convenience override for gesture-only runs.
+  input_size: 126
+  hidden_size: 256
+  num_classes: 2000
+  num_lstm_layers: 2
+  nhead: 8
+  num_transformer_layers: 4
+  seq_len: 30
+  batch_size: 64
+  lr: 1.0e-3
+  epochs: 100
+  weight_decay: 1.0e-4
+  save_dir: "models"
+  data_dir: "training-data"
+  augment: true

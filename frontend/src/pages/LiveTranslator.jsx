@@ -1,0 +1,129 @@
+import React, { useState } from 'react';
+import { motion } from 'framer-motion';
+import { Camera, Mic, Info } from 'lucide-react';
+import { textToSign } from '../api/signverse';
+
+const LiveTranslator = () => {
+  const [sentiment, setSentiment] = useState('Neutral');
+  const [confidence, setConfidence] = useState(98.4);
+  const [text, setText] = useState('');
+  const [tokens, setTokens] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(null);
+
+  return (
+    <motion.div 
+      initial={{ opacity: 0, y: 20 }}
+      animate={{ opacity: 1, y: 0 }}
+      className="dashboard-grid"
+    >
+      <div className="glass-card p-8 flex flex-col gap-6 min-h-[600px]">
+        <div className="flex justify-between items-center">
+          <h2 className="text-xl font-semibold">Live AI Translator</h2>
+          <div className="flex gap-2 bg-slate-900 p-1 rounded-lg">
+            <button className="px-3 py-1 bg-indigo-600 rounded-md text-sm">Sign-to-Text</button>
+            <button className="px-3 py-1 text-slate-400 text-sm">Speech-to-Sign</button>
+          </div>
+        </div>
+
+        <div className="flex-1 bg-slate-900 rounded-3xl border border-slate-800 flex items-center justify-center relative overflow-hidden group">
+          <Camera size={48} className="text-slate-700 group-hover:scale-110 transition-transform" />
+          
+          {/* Emotion Overlay */}
+          <div className="absolute top-6 right-6 glass-card bg-indigo-500/10 border-indigo-500/20 px-4 py-2 flex items-center gap-2">
+            <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
+            <span className="text-sm font-medium text-indigo-300">Sentiment: {sentiment}</span>
+          </div>
+
+          <p className="absolute bottom-6 left-6 text-indigo-400 font-medium flex items-center gap-2">
+            <span className="w-2 h-2 bg-red-500 rounded-full animate-pulse"></span>
+            Camera Active
+          </p>
+        </div>
+
+        <div className="glass-card bg-indigo-500/10 border-indigo-500/20 p-6">
+          <div className="flex justify-between items-center mb-2">
+            <p className="text-sm text-indigo-300 font-medium uppercase tracking-wider">AI Confidence: {confidence}%</p>
+            <Info size={16} className="text-slate-500" />
+          </div>
+          <p className="text-2xl font-semibold">"HELLO WORLD, I AM LEARNING SIGN LANGUAGE"</p>
+        </div>
+      </div>
+
+      <div className="flex flex-col gap-6">
+        <div className="glass-card p-6">
+          <h3 className="text-lg font-semibold mb-4">Text to Sign (API)</h3>
+          <textarea
+            className="w-full bg-slate-900 border border-slate-700 rounded-xl p-3 outline-none focus:border-indigo-500 transition-all text-sm min-h-[90px]"
+            placeholder="Type a sentence to convert..."
+            value={text}
+            onChange={(e) => setText(e.target.value)}
+          />
+          <button
+            className="w-full btn-primary mt-4"
+            disabled={loading || !text.trim()}
+            onClick={async () => {
+              setLoading(true);
+              setError(null);
+              setTokens([]);
+              try {
+                const res = await textToSign(text.trim());
+                setTokens(res.tokens || []);
+              } catch (e) {
+                setError('API request failed');
+              } finally {
+                setLoading(false);
+              }
+            }}
+          >
+            {loading ? 'Converting...' : 'Convert'}
+          </button>
+          {error && <p className="text-sm text-red-400 mt-3">{error}</p>}
+          {tokens.length > 0 && (
+            <div className="mt-4 text-sm text-slate-300">
+              <div className="text-xs text-slate-500 mb-1">Tokens</div>
+              <div className="flex flex-wrap gap-2">
+                {tokens.map((t, i) => (
+                  <span key={i} className="px-2 py-1 bg-slate-900 border border-slate-700 rounded-lg">{t}</span>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+
+        <div className="glass-card p-6">
+          <h3 className="text-lg font-semibold mb-4">Target Language</h3>
+          <select className="w-full bg-slate-900 border border-slate-700 rounded-xl p-3 outline-none focus:border-indigo-500 transition-all">
+            <option>English (US)</option>
+            <option>Hindi (IN)</option>
+            <option>Spanish (ES)</option>
+            <option>French (FR)</option>
+          </select>
+        </div>
+
+        <div className="glass-card p-6 flex-1">
+          <h3 className="text-lg font-semibold mb-4">Audio Output</h3>
+          <div className="space-y-4">
+            <div className="flex justify-between text-sm">
+              <span className="text-slate-400">Synthesis Engine</span>
+              <span className="text-indigo-400">SignVerse Neural</span>
+            </div>
+            <div className="flex justify-between text-sm">
+              <span className="text-slate-400">Voice Gender</span>
+              <span className="text-indigo-400">Female (Standard)</span>
+            </div>
+            <div className="flex justify-between text-sm">
+              <span className="text-slate-400">Emotional Pitch</span>
+              <span className="text-indigo-400">Synced</span>
+            </div>
+            <button className="w-full btn-primary mt-4 flex items-center justify-center gap-2">
+              <Mic size={18} /> Test Speaker
+            </button>
+          </div>
+        </div>
+      </div>
+    </motion.div>
+  );
+};
+
+export default LiveTranslator;

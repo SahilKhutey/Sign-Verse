@@ -1,0 +1,29 @@
+name: Training Pipeline
+on:
+  schedule:
+    - cron: '0 0 * * 0'  # Weekly training (Sunday midnight)
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  train:
+    runs-on: ubuntu-latest # In real scenario, use [gpu-linux] as requested
+    steps:
+      - uses: actions/checkout@v2
+      
+      - name: Set up Python
+        uses: actions/setup-python@v2
+        with:
+          python-version: '3.10'
+          
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+        
+      - name: Train Models
+        run: |
+          python training/launch_all.py \
+            --datasets all \
+            --epochs 50 \
+            --validate-every 5 \
+            --dry-run # Removed for actual production runs

@@ -1,0 +1,17 @@
+fastapi
+python-multipart
+uvicorn
+torch
+torchvision
+mediapipe
+opencv-python
+numpy
+transformers
+faster-whisper
+pyyaml
+scikit-learn
+wandb
+python-dotenv
+tqdm
+httpx
+pyttsx3
