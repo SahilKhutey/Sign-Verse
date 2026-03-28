@@ -10,6 +10,23 @@ python scripts/run_live_opencv_translate.py --camera 0
 
 Press `q` to exit.
 
+## Helpful Options
+
+```
+python scripts/run_live_opencv_translate.py --list-cameras
+python scripts/run_live_opencv_translate.py --camera 1 --width 1280 --height 720 --fps 20 --flip
+python scripts/run_live_opencv_translate.py --camera 0 --min-confidence 0.6 --no-guides
+```
+
+Flags:
+- `--list-cameras`: Probe and print available camera indices.
+- `--width` / `--height`: Set capture resolution.
+- `--fps`: Cap capture loop FPS.
+- `--flip`: Mirror the camera for easier signing.
+- `--min-confidence`: Hide labels below a confidence threshold.
+- `--no-guides`: Disable framing guides overlay.
+- `--no-fps`: Hide the FPS overlay.
+
 ## Web Live Stream
 
 The web UI uses WebSocket streaming:
@@ -34,8 +51,8 @@ Use the debug endpoint to get annotated frames:
    - Position your torso and shoulders in frame for pose landmarks.
 
 3. **Distance**
-   - Stand about 1–2 meters from the camera.
-   - Hands should occupy 20–40% of the frame height.
+   - Stand about 1-2 meters from the camera.
+   - Hands should occupy 20-40% of the frame height.
 
 4. **Background**
    - Prefer a plain background.
@@ -47,13 +64,13 @@ Use the debug endpoint to get annotated frames:
 
 ## Gesture Points + Tracking
 
-The system uses the canonical **225‑dim keypoint layout**:
+The system uses the canonical **225-dim keypoint layout**:
 
 - Body (33 × 3 = 99)
 - Left Hand (21 × 3 = 63)
 - Right Hand (21 × 3 = 63)
 
-Landmarks are tracked frame‑by‑frame and smoothed using a temporal filter
+Landmarks are tracked frame-by-frame and smoothed using a temporal filter
 to reduce noisy predictions.
 
 ## Output
