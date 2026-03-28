@@ -14,6 +14,7 @@ class RealtimeInference:
         self.loader = loader
         self._feature_extractor = None
         self._translator = None
+        self._sequence_buffer = None
 
     @property
     def feature_extractor(self):
@@ -131,5 +132,7 @@ class RealtimeInference:
             "gesture_id": gesture_id,
             "gesture_label": gesture_label,
             "sign_tokens": tokens,
-            "frame_id": data.get("frame_id", 0)
+            "frame_id": data.get("frame_id", 0),
+            "sequence_ready": data.get("sequence_ready", False),
+            "sequence_length": data.get("sequence_length", 0),
         }

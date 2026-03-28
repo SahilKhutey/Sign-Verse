@@ -37,6 +37,7 @@ The web UI uses WebSocket streaming:
 - Frames are captured every ~100ms and sent as JPEG (binary WebSocket).
 - The server enforces a 1MB payload limit and FPS throttling.
 - If `STREAM_TOKEN_REQUIRED=true`, pass `VITE_STREAM_TOKEN` for authorization.
+- Sequence mode buffers multiple frames to enable temporal models (enable in UI).
 
 ## Debug Overlay
 

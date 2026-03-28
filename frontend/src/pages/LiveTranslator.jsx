@@ -29,6 +29,9 @@ const LiveTranslator = () => {
   const [maxFrameBytes, setMaxFrameBytes] = useState(1000000);
   const [jpegQuality, setJpegQuality] = useState(0.6);
   const [streamError, setStreamError] = useState(null);
+  const [useSequence, setUseSequence] = useState(false);
+  const [sequenceWindow, setSequenceWindow] = useState(30);
+  const [sequenceReady, setSequenceReady] = useState(false);
 
   useEffect(() => {
     getInferenceHealth()
@@ -66,6 +69,8 @@ const LiveTranslator = () => {
         window: streamWindow,
         min_confidence: minConfidence,
         max_frame_bytes: maxFrameBytes,
+        use_sequence: useSequence,
+        sequence_window: sequenceWindow,
       }));
     };
     ws.onmessage = (evt) => {
@@ -106,6 +111,7 @@ const LiveTranslator = () => {
         }
         if (data.dropped_frames !== undefined) setDroppedFrames(data.dropped_frames);
         if (data.server_ts !== undefined) setServerTs(data.server_ts);
+        if (data.sequence_ready !== undefined) setSequenceReady(data.sequence_ready);
       } catch {}
     };
     ws.onclose = () => setStreamStatus('Offline');
@@ -189,6 +195,9 @@ const LiveTranslator = () => {
           <p className="text-2xl font-semibold">"HELLO WORLD, I AM LEARNING SIGN LANGUAGE"</p>
           <div className="text-xs text-slate-500 mt-2">Inference: {inferenceStatus}</div>
           <div className="text-xs text-slate-500 mt-1">Stream: {streamStatus}</div>
+          <div className="text-xs text-slate-500 mt-1">
+            Sequence: {useSequence ? (sequenceReady ? 'Ready' : 'Buffering') : 'Off'}
+          </div>
           {confidencePct !== null && (
             <div className="text-xs text-slate-500 mt-1">Confidence: {confidencePct}%</div>
           )}
@@ -335,6 +344,25 @@ const LiveTranslator = () => {
                 onChange={(e) => setMaxFrameBytes(Number(e.target.value))}
                 className="bg-slate-900 border border-slate-700 rounded-lg p-2 text-slate-200"
               />
+            </label>
+            <label className="flex flex-col gap-1 text-slate-400">
+              Sequence Window
+              <input
+                type="number"
+                min="5"
+                max="120"
+                value={sequenceWindow}
+                onChange={(e) => setSequenceWindow(Number(e.target.value))}
+                className="bg-slate-900 border border-slate-700 rounded-lg p-2 text-slate-200"
+              />
+            </label>
+            <label className="flex items-center gap-2 text-slate-400 mt-6">
+              <input
+                type="checkbox"
+                checked={useSequence}
+                onChange={(e) => setUseSequence(e.target.checked)}
+              />
+              Enable Sequence Mode
             </label>
           </div>
           <div className="flex gap-2">

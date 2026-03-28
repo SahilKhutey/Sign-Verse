@@ -92,6 +92,8 @@ class StreamInitRequest(BaseModel):
     window: int = Field(default=8, ge=1, le=60)
     min_confidence: float = Field(default=0.4, ge=0.0, le=1.0)
     max_frame_bytes: int = Field(default=1_000_000, ge=10_000, le=5_000_000)
+    use_sequence: bool = False
+    sequence_window: int = Field(default=30, ge=5, le=120)
 
 
 @app.get("/health")
@@ -331,8 +333,11 @@ async def websocket_stream(ws: WebSocket):
     window = 8
     min_confidence = 0.4
     max_frame_bytes = 1_000_000
-    from gesture_recognition.utils.temporal_filter import TemporalFilter
+    use_sequence = False
+    sequence_window = 30
+    from gesture_recognition.utils.temporal_filter import TemporalFilter, TemporalSequenceBuffer
     smoother = TemporalFilter(window=window)
+    sequence_buffer = TemporalSequenceBuffer(window=sequence_window)
     last_frame_time = 0.0
     dropped_frames = 0
     try:
@@ -378,18 +383,25 @@ async def websocket_stream(ws: WebSocket):
                     window=data.get("window", window),
                     min_confidence=data.get("min_confidence", min_confidence),
                     max_frame_bytes=data.get("max_frame_bytes", max_frame_bytes),
+                    use_sequence=data.get("use_sequence", use_sequence),
+                    sequence_window=data.get("sequence_window", sequence_window),
                 )
                 fps_limit = int(payload.fps)
                 window = int(payload.window)
                 min_confidence = float(payload.min_confidence)
                 max_frame_bytes = int(payload.max_frame_bytes)
+                use_sequence = bool(payload.use_sequence)
+                sequence_window = int(payload.sequence_window)
                 smoother = TemporalFilter(window=window)
+                sequence_buffer = TemporalSequenceBuffer(window=sequence_window)
                 await ws.send_json({
                     "type": "config_ack",
                     "fps": fps_limit,
                     "window": window,
                     "min_confidence": min_confidence,
                     "max_frame_bytes": max_frame_bytes,
+                    "use_sequence": use_sequence,
+                    "sequence_window": sequence_window,
                 })
                 continue
 
@@ -409,6 +421,12 @@ async def websocket_stream(ws: WebSocket):
                     await ws.send_json({"error": "frame_decode_failed", "detail": str(e)})
                     continue
             else:
+                if use_sequence:
+                    keypoints = data.get("keypoints", [])
+                    sequence = sequence_buffer.update(keypoints)
+                    data["use_sequence"] = True
+                    data["sequence_ready"] = sequence is not None
+                    data["sequence_length"] = len(sequence) if sequence is not None else 0
                 result = realtime.process_stream_frame(data)
             gesture_id = result.get("gesture_id")
             conf = result.get("confidence")

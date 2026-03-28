@@ -22,7 +22,7 @@ class TemporalFilter:
         Returns None until the buffer is full.
         """
 
-        if gesture:
+        if gesture is not None:
             self.buffer.append(gesture)
 
         if len(self.buffer) < self.window:
@@ -31,3 +31,25 @@ class TemporalFilter:
         most_common = Counter(self.buffer).most_common(1)
 
         return most_common[0][0]
+
+
+class TemporalSequenceBuffer:
+    """
+    Maintain a sliding window of per-frame feature vectors for temporal models.
+    """
+
+    def __init__(self, window=30, stride=1):
+        self.window = int(window)
+        self.stride = int(stride)
+        self.buffer = deque(maxlen=self.window)
+
+    def reset(self):
+        self.buffer.clear()
+
+    def update(self, features):
+        self.buffer.append(features)
+        if len(self.buffer) < self.window:
+            return None
+        if self.stride > 1 and (len(self.buffer) % self.stride != 0):
+            return None
+        return list(self.buffer)
