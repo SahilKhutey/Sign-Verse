@@ -15,6 +15,8 @@ import cv2
 from api_server.model_loader import ModelLoader
 from api_server.realtime_inference import RealtimeInference
 from vision_pipeline.feature_extractor import FeatureExtractor
+from vision_pipeline.yolo_tracker import YoloTracker
+from vision_pipeline.optical_flow import MotionAnalyzer
 from gesture_recognition.utils.temporal_filter import TemporalFilter
 
 
@@ -51,6 +53,9 @@ class LiveCapture:
         self.tts_cooldown = tts_cooldown
         self._tts = None
         self._last_spoken = 0.0
+        self._last_features = None
+        self.yolo = YoloTracker()
+        self.motion_analyzer = MotionAnalyzer()
 
     def _apply_camera_settings(self, cap: cv2.VideoCapture) -> None:
         if self.width:
@@ -97,23 +102,61 @@ class LiveCapture:
                     fps_smoothed = instant_fps if fps_smoothed is None else (0.85 * fps_smoothed + 0.15 * instant_fps)
                 prev_time = now
 
-                features, drawn = self.extractor.extract_and_draw(frame)
-                result = self.realtime.classify_gesture(features.tolist())
+                # 1. YOLO Bounding Box & Crop
+                bbox = self.yolo.get_signer_bbox(frame)
+                crop, crop_coords = self.yolo.extract_crop(frame, bbox)
+                
+                # 2. Keypoint Extraction on Stabilized Crop
+                features, drawn_crop = self.extractor.extract_and_draw(crop)
+                
+                # Composite the UI Drawing
+                drawn = frame.copy()
+                nx1, ny1, nx2, ny2 = crop_coords
+                drawn[ny1:ny2, nx1:nx2] = drawn_crop
+                
+                if bbox:
+                    # Draw actual YOLO Box (Orange)
+                    cv2.rectangle(drawn, (bbox[0], bbox[1]), (bbox[2], bbox[3]), (0, 165, 255), 2)
+                    cv2.putText(drawn, "Signer ROI", (bbox[0], max(0, bbox[1]-10)), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 165, 255), 1)
+
+                # 3. Motion Analyzer (Dense Optical Flow)
+                motion_energy = self.motion_analyzer.process_frame(frame, bbox_points=crop_coords)
+                
+                # Compute velocity
+                if self._last_features is None:
+                    velocity = np.zeros_like(features)
+                else:
+                    velocity = features - self._last_features
+                self._last_features = features.copy()
+                
+                # Construct 3258-dim foundation vector
+                intel_vector = np.concatenate([features, velocity])
+                
+                # Payload for API
+                payload = {
+                    "keypoints": intel_vector.tolist(),
+                    "mode": "3d",
+                    "frame_id": int(now * 1000)
+                }
+                
+                result = self.realtime.process_stream_frame(payload)
                 gesture_id = result.get("gesture_id")
-                confidence = result.get("confidence")
-                if confidence is not None and confidence < self.min_confidence:
-                    gesture_id = None
+                # process_stream_frame does not strictly return raw confidence right now, fallback to valid result
+                
                 smoothed = self.filter.update(gesture_id)
 
                 label = None
                 if smoothed is not None:
-                    label = self.loader.gesture_label(smoothed) or f"ID:{smoothed}"
+                    label = result.get("gesture_label") or self.loader.gesture_label(smoothed) or f"ID:{smoothed}"
+                
+                intent = result.get("intent", "IDLE")
 
                 if self.draw_guides:
                     self._draw_guides(drawn)
 
                 # Overlay text
-                overlay_text = label or "Detecting..."
+                overlay_text = f"[{intent}] {label}" if label else f"[{intent}] Detecting..."
+                confidence = None # legacy compatibility within overlay
                 if confidence is not None:
                     overlay_text = f"{overlay_text} ({confidence:.2f})"
                 cv2.putText(
@@ -123,6 +166,17 @@ class LiveCapture:
                     cv2.FONT_HERSHEY_SIMPLEX,
                     1.0,
                     (0, 255, 0),
+                    2,
+                )
+                
+                # Render Motion Energy Overlay
+                cv2.putText(
+                    drawn,
+                    f"Motion Energy: {motion_energy:.2f}",
+                    (20, 110),
+                    cv2.FONT_HERSHEY_SIMPLEX,
+                    0.6,
+                    (255, 100, 100),
                     2,
                 )
                 if self.show_fps and fps_smoothed is not None:

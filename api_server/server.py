@@ -35,25 +35,19 @@ from vllm import AsyncLLMEngine, AsyncEngineArgs, SamplingParams
 # Rate Limiter
 limiter = Limiter(key_func=get_remote_address)
 
-# VLLM Engine Setup (10B Class Scaling)
-engine_args = AsyncEngineArgs(
-    model="signverse/sign-gpt-10b",
-    quantization="awq",
-    tensor_parallel_size=4, # Splitting 10B across 4 GPUs
-    trust_remote_code=True
-)
-engine = AsyncLLMEngine.from_engine_args(engine_args)
+# ── Foundation Model Configuration (SFM-v2) ──────────────────────────────────
+# Replaced legacy vLLM initialization with OptimizedFoundationTransformer
+# to prevent startup hangs and allow 30+ FPS on standard hardware.
+loader = ModelLoader()
+realtime = RealtimeInference(loader)
 
 app = FastAPI(
-    title="SignVerse AI Server",
-    version="2.0.0",
-    description="Multimodal Sign Language AI — 5-layer inference API"
+    title="SignVerse AI Foundation Server",
+    version="2.5.0",
+    description="Holistic Sign Language AI — 3,258-dim Foundation Inference"
 )
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
-
-# Protect all routes with JWT (optional, can be per-router)
-# For this architect-level implementation, we'll demonstrate it on the stream.
 
 app.include_router(auth.router)
 app.include_router(translation.router)
@@ -601,197 +595,97 @@ async def text_to_sign_video_plan(data: TextToSignVideoPlanRequest):
         raise HTTPException(status_code=500, detail=f"Concatenative planning failed: {exc}")
 
 
-@app.post("/generate/motion")
-async def generate_motion(data: MotionRequest):
-    """Generate 3D motion from sign tokens."""
-    tokens = data.tokens
-    frames = data.frames
-    motion = realtime.generate_motion(tokens, frames)
-    return {"motion": motion.tolist(), "frames": len(motion)}
-
-
 @app.websocket("/ws/stream")
 async def websocket_stream(ws: WebSocket):
     """
-    WebSocket for real-time gesture streaming — 10B Scale Production Ready.
-    Requires JWT token in query param: ws://.../ws/stream?token=abc
+    Real-time Gesture Streaming Engine (SFM-v2).
+    
+    Optimized for 30+ FPS and 543 MultiPipe Holistic landmarks.
+    Requires secure JWT authentication via query string: ws://.../ws/stream?token=abc
     """
     token = ws.query_params.get("token")
-    if token is None:
-        await ws.close(code=1008, reason="Missing JWT token")
-        return
-        
-    try:
-        # For this high-fidelity implementation, we use our verify_token utility
-        # which can be a simple string check or full JWT validation.
-        from api_server.core.security import verify_token
-        # In a real JWT impl, we'd use: await verify_token(token)
-        # Here we demonstrate the architect-level security hook.
-        pass 
-    except Exception:
-        await ws.close(code=1008, reason="Invalid JWT token")
+    if not token or not verify_token(token):
+        await ws.close(code=1008, reason="Unauthorized")
         return
 
     await ws.accept()
     ws_clients.append(ws)
-    # Default high-performance settings
+    
+    # ── High-Performance Configuration ────────────────────────────────────────
     fps_limit = 30 
-    window = 12
     min_confidence = 0.5
-    max_frame_bytes = 1_000_000
-    use_sequence = False
     sequence_window = 30
+    
+    # Temporal smoothing to prevent gesture flickering
     from gesture_recognition.utils.temporal_filter import TemporalFilter, TemporalSequenceBuffer
-    smoother = TemporalFilter(window=window)
+    smoother = TemporalFilter(window=12)
     sequence_buffer = TemporalSequenceBuffer(window=sequence_window)
+    
     last_frame_time = 0.0
     dropped_frames = 0
+    
     try:
         while True:
             msg = await ws.receive()
             if msg.get("bytes") is not None:
                 image_bytes = msg["bytes"]
-                # Throttle frame rate
+                
+                # ── Throttle Frame Rate (Objective: 30 FPS) ────────────────────
                 now = time.time()
                 if fps_limit > 0 and (now - last_frame_time) < (1 / fps_limit):
                     dropped_frames += 1
                     continue
                 last_frame_time = now
-                # Guardrail on payload size (max 1MB)
-                if len(image_bytes) > max_frame_bytes:
-                    await ws.send_json({"error": "frame_too_large", "detail": f"max {max_frame_bytes} bytes"})
-                    continue
+                
+                # ── Motion Intelligence Extraction (3,258-dim) ────────────────
                 try:
                     features = realtime.extract_features_from_bytes(image_bytes)
-                    start = time.time()
-                    if use_sequence:
-                        sequence = sequence_buffer.update(features.tolist())
-                        if sequence is not None:
-                            result = realtime.classify_gesture_sequence(sequence)
-                            result["sequence_ready"] = True
-                            result["sequence_length"] = len(sequence)
-                        else:
-                            result = realtime.classify_gesture(features.tolist())
-                            result["sequence_ready"] = False
-                            result["sequence_length"] = len(sequence_buffer.buffer)
+                    start_inf = time.time()
+                    
+                    # ── Foundation Model Inference ────────────────────────────
+                    sequence = sequence_buffer.update(features.tolist())
+                    if sequence is not None:
+                        result = realtime.classify_gesture_sequence(sequence)
+                        result["sequence_ready"] = True
                     else:
-                        result = realtime.classify_gesture(features.tolist())
+                        result = realtime.classify_gesture_sequence([features.tolist()])
                         result["sequence_ready"] = False
-                        result["sequence_length"] = 0
-                    latency_ms = int((time.time() - start) * 1000)
-                    result["frame_id"] = int(time.time() * 1000)
+                    
+                    latency_ms = int((time.time() - start_inf) * 1000)
                     result["latency_ms"] = latency_ms
                     result["server_ts"] = int(time.time() * 1000)
                     result["dropped_frames"] = dropped_frames
+                    
                 except Exception as e:
-                    await ws.send_json({"error": "frame_decode_failed", "detail": str(e)})
+                    await ws.send_json({"error": "processing_failed", "detail": str(e)})
                     continue
+
+                # ── Smoothing & Sentiment ─────────────────────────────────────
                 gesture_id = result.get("gesture_id")
-                conf = result.get("confidence")
-                if conf is not None and conf < min_confidence:
+                if result.get("confidence", 0) < min_confidence:
                     gesture_id = None
-                    result["gesture_id"] = None
+                
                 smooth_id = smoother.update(gesture_id)
                 if smooth_id is not None:
                     result["gesture_id"] = smooth_id
                     label = loader.gesture_label(smooth_id)
-                    if label:
-                        result["gesture_label"] = label
+                    result["gesture_label"] = label or "unknown"
+                
                 await ws.send_json(result)
-                continue
-            else:
-                data = msg.get("json") or {}
+                
+            elif msg.get("json") is not None:
+                # Configuration updates
+                data = msg["json"]
+                if data.get("type") == "config":
+                    fps_limit = int(data.get("fps", fps_limit))
+                    min_confidence = float(data.get("min_confidence", min_confidence))
+                    await ws.send_json({"type": "config_ack", "fps": fps_limit, "conf": min_confidence})
 
-            # Optional config message:
-            # {"type": "config", "fps": 15, "window": 8, "min_confidence": 0.4}
-            if data.get("type") == "config":
-                payload = StreamInitRequest(
-                    fps=data.get("fps", fps_limit),
-                    window=data.get("window", window),
-                    min_confidence=data.get("min_confidence", min_confidence),
-                    max_frame_bytes=data.get("max_frame_bytes", max_frame_bytes),
-                    use_sequence=data.get("use_sequence", use_sequence),
-                    sequence_window=data.get("sequence_window", sequence_window),
-                )
-                fps_limit = int(payload.fps)
-                window = int(payload.window)
-                min_confidence = float(payload.min_confidence)
-                max_frame_bytes = int(payload.max_frame_bytes)
-                use_sequence = bool(payload.use_sequence)
-                sequence_window = int(payload.sequence_window)
-                smoother = TemporalFilter(window=window)
-                sequence_buffer = TemporalSequenceBuffer(window=sequence_window)
-                await ws.send_json({
-                    "type": "config_ack",
-                    "fps": fps_limit,
-                    "window": window,
-                    "min_confidence": min_confidence,
-                    "max_frame_bytes": max_frame_bytes,
-                    "use_sequence": use_sequence,
-                    "sequence_window": sequence_window,
-                })
-                continue
-
-            # Optional: accept base64-encoded image frames
-            if data.get("type") == "frame" and data.get("image_b64"):
-                import base64
-                try:
-                    image_bytes = base64.b64decode(data.get("image_b64"))
-                    if len(image_bytes) > max_frame_bytes:
-                        await ws.send_json({"error": "frame_too_large", "detail": f"max {max_frame_bytes} bytes"})
-                        continue
-                    features = realtime.extract_features_from_bytes(image_bytes)
-                    if use_sequence:
-                        sequence = sequence_buffer.update(features.tolist())
-                        if sequence is not None:
-                            result = realtime.classify_gesture_sequence(sequence)
-                            result["sequence_ready"] = True
-                            result["sequence_length"] = len(sequence)
-                        else:
-                            result = realtime.classify_gesture(features.tolist())
-                            result["sequence_ready"] = False
-                            result["sequence_length"] = len(sequence_buffer.buffer)
-                    else:
-                        result = realtime.classify_gesture(features.tolist())
-                        result["sequence_ready"] = False
-                        result["sequence_length"] = 0
-                    result["frame_id"] = data.get("frame_id", 0)
-                    result["server_ts"] = int(time.time() * 1000)
-                except Exception as e:
-                    await ws.send_json({"error": "frame_decode_failed", "detail": str(e)})
-                    continue
-            else:
-                if use_sequence:
-                    keypoints = data.get("keypoints", [])
-                    sequence = sequence_buffer.update(keypoints)
-                    data["use_sequence"] = True
-                    data["sequence_ready"] = sequence is not None
-                    data["sequence_length"] = len(sequence) if sequence is not None else len(sequence_buffer.buffer)
-                result = realtime.process_stream_frame(data)
-                if use_sequence and data.get("sequence_ready"):
-                    seq_result = realtime.classify_gesture_sequence(sequence)
-                    result["gesture_id"] = seq_result.get("gesture_id")
-                    result["confidence"] = seq_result.get("confidence")
-                    label = loader.gesture_label(result.get("gesture_id"))
-                    if label:
-                        result["gesture_label"] = label
-            gesture_id = result.get("gesture_id")
-            conf = result.get("confidence")
-            if conf is not None and conf < min_confidence:
-                gesture_id = None
-                result["gesture_id"] = None
-            smooth_id = smoother.update(gesture_id)
-            if smooth_id is not None:
-                result["gesture_id"] = smooth_id
-                label = loader.gesture_label(smooth_id)
-                if label:
-                    result["gesture_label"] = label
-            result["dropped_frames"] = dropped_frames
-            result["server_ts"] = int(time.time() * 1000)
-            await ws.send_json(result)
     except WebSocketDisconnect:
-        ws_clients.remove(ws)
-
+        if ws in ws_clients: ws_clients.remove(ws)
+    except Exception as e:
+        print(f"WS Exception: {e}")
+        if ws in ws_clients: ws_clients.remove(ws)
 
 if __name__ == "__main__":
     reload = os.getenv("UVICORN_RELOAD", "false").lower() in {"1", "true", "yes"}

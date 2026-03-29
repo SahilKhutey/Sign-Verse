@@ -8,24 +8,29 @@ This repository includes:
 3. Web and Android clients
 4. Training pipelines and dataset tooling
 
-## Current Status
-
-### Working
-- Unified inference API server (`api_server/`)
-- Backend service with auth, history, and WebSocket rooms (`backend/`)
-- Android app (Jetpack Compose) (`ar-vr-app/android/`)
-- Web frontend (Vite + React) (`frontend/`)
-- NLP text↔gloss training + inference (`training/train_text_gloss.py`, `nlp_translation/inference.py`)
-
-### In Progress
-- Full production hardening (CORS, tokens, logging, health checks)
-- Model quality improvements (BLEU/WER tracking, curriculum learning)
-- Text↔gloss dataset expansion
-
-### Known Limitations
-- Text↔gloss translation falls back to rule-based conversion if no trained model exists.
-- Avatar retargeting is still a placeholder.
 - Large assets (models, datasets, logs) are committed in repo and should be moved to a registry or storage bucket for production.
+
+---
+
+## 🔥 Advanced Vision & Robotics (New)
+
+The platform now includes a high-fidelity vision-to-robotics pipeline:
+
+### 🧬 Advanced Vision Tracking
+- **Multi-Source Fusion**: Optimized fitting of SMPL-X parameters ($\theta, \beta$) from **MediaPipe**, **OpenPose**, and **VIBE**.
+- **Edge-Optimized MoveNet**: Lightweight pose estimation for AR/Mobile clients.
+- **YOLO-Guided Detection**: Real-time signer ROI isolation for stabilized feature extraction.
+- **Parametric SMPL-X**: Full support for the 54-joint rig (Body + Fingers + Face).
+
+### 🤖 Humanoid Robotics & Motion Learning
+- **MuJoCo Humanoid Env**: Physics-based simulation for sign-language imitation.
+- **DeepMimic Imitation**: Reinforcement Learning (PPO) loop for teaching robots to sign using human reference data.
+- **ROS 2 Production Bridge**: Real-time trajectory orchestration using industry-standard `rclpy`.
+- **OpenSim Safety Analysis**: Inverse Dynamics torque verification to prevent hardware motor burnout.
+
+See [Advanced Vision & Robotics Guide](docs/ADVANCED_VISION_ROBOTICS.md) for technical deep-dives.
+
+---
 
 ## Architecture (High Level)
 

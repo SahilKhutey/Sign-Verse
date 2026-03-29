@@ -54,6 +54,98 @@ def map_human_to_robot(human_pose):
 
     return robot_joints
 
+def map_vibe_to_robot(vibe_joints):
+    """
+    Kinematic Mapping from VIBE 3D SMPL Joints [81, 3] to Robot Joint space.
+    VIBE provides authoritative 3D (X, Y, Z) coordinates.
+
+    Args:
+        vibe_joints (np.ndarray): Array of shape [81, 3].
+    
+    Returns:
+        dict: High-fidelity mapping of robot joint positions.
+    """
+    return robot_joints
+
+def map_vibe_to_robot(vibe_joints):
+    """
+    Kinematic Mapping from VIBE 3D SMPL Joints [81, 3] to Robot Joint space.
+    VIBE provides authoritative 3D (X, Y, Z) coordinates.
+
+    Args:
+        vibe_joints (np.ndarray): Array of shape [81, 3].
+    
+    Returns:
+        dict: High-fidelity mapping of robot joint positions.
+    """
+    # Mapping for common SMPL-to-Robot joints
+    # 0: Pelvis, 1: L_Hip, 2: R_Hip, 3: Spine1, 4: L_Knee, 5: R_Knee, 6: Spine2, 7: L_Ankle, 8: R_Ankle, 9: Spine3
+    # 13: L_Shoulder, 14: R_Shoulder, 16: L_Elbow, 17: R_Elbow, 18: L_Wrist, 19: R_Wrist
+    
+    robot_joints = {}
+    
+    # Body Core (3D stabilized)
+    robot_joints["base_pelvis"] = vibe_joints[0]
+    robot_joints["spine_center"] = vibe_joints[9]
+    
+    # Left Arm
+    robot_joints["left_shoulder"] = vibe_joints[13]
+    robot_joints["left_elbow"] = vibe_joints[16]
+    robot_joints["left_wrist"] = vibe_joints[18]
+    
+    # Right Arm
+    robot_joints["right_shoulder"] = vibe_joints[14]
+    robot_joints["right_elbow"] = vibe_joints[17]
+    robot_joints["right_wrist"] = vibe_joints[19]
+    
+    # Legs (Critical for mobile robotics)
+    robot_joints["left_hip"] = vibe_joints[1]
+    robot_joints["left_knee"] = vibe_joints[4]
+    robot_joints["left_ankle"] = vibe_joints[7]
+    
+    robot_joints["right_hip"] = vibe_joints[2]
+    robot_joints["right_knee"] = vibe_joints[5]
+    robot_joints["right_ankle"] = vibe_joints[8]
+    
+    return robot_joints
+
+def map_smplx_to_robot(pose_params, shape_params=None):
+    """
+    Parametric Mapping from SMPL-X Pose parameters [162,] to Robot Joint space.
+    Converts relative 3D axis-angles into motor rotations.
+    Standardized for 54-joint SMPL-X rig.
+    """
+    robot_joints = {}
+    
+    # 1. Torso & Arms
+    # Standard SMPL-X joints (Body):
+    # 0: Root, 1/2: Hips, 12: Neck, 13/14: Shoulders, 16/17: Elbows, 18/19: Wrists
+    
+    # Left Arm
+    robot_joints["left_shoulder_rot"] = pose_params[13*3 : 13*3 + 3]
+    robot_joints["left_elbow_rot"] = pose_params[16*3 : 16*3 + 3]
+    robot_joints["left_wrist_rot"] = pose_params[18*3 : 18*3 + 3]
+    
+    # Right Arm
+    robot_joints["right_shoulder_rot"] = pose_params[14*3 : 14*3 + 3]
+    robot_joints["right_elbow_rot"] = pose_params[17*3 : 17*3 + 3]
+    robot_joints["right_wrist_rot"] = pose_params[19*3 : 19*3 + 3]
+    
+    # 2. Hands (Expressive Mapping)
+    # L_Hand Start: Joint 22. R_Hand Start: Joint 37.
+    # Each hand has 15 joints (5 fingers * 3 joints).
+    for i in range(15):
+        l_idx = 22 + i
+        r_idx = 37 + i
+        robot_joints[f"left_hand_joint_{i}_rot"] = pose_params[l_idx*3 : l_idx*3 + 3]
+        robot_joints[f"right_hand_joint_{i}_rot"] = pose_params[r_idx*3 : r_idx*3 + 3]
+        
+    # 3. Jaw (Sign Language Expression)
+    # Joint 52
+    robot_joints["jaw_rot"] = pose_params[52*3 : 52*3 + 3]
+        
+    return robot_joints
+
 if __name__ == "__main__":
     # Test with dummy data
     dummy_pose = np.zeros(1629)
@@ -65,3 +157,9 @@ if __name__ == "__main__":
     for joint, pos in mapped.items():
         if np.any(pos):
             print(f"  {joint}: {pos}")
+
+    # Test SMPL-X Mapping
+    dummy_smplx = np.zeros(162)
+    dummy_smplx[13*3] = 1.0 # Left Shoulder rotation
+    mapped_smplx = map_smplx_to_robot(dummy_smplx)
+    print(f"Mapped SMPL-X Left Shoulder Rotation: {mapped_smplx['left_shoulder_rot']}")
