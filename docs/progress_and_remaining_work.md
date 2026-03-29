@@ -28,6 +28,10 @@ This document is based on the current code in the repository (not on `docs/*.md`
 - Video embedding extraction for training:
   - `vision_pipeline/video_embedding.py`
   - `training/data_pipeline/extract_video_embeddings.py`
+- Video clip -> text training and inference path:
+  - `training/data_pipeline/build_video_sign_text_dataset.py`
+  - `training/train_video_sign_to_text.py`
+  - API: `POST /translate/video-to-text`
 - Foundation gesture-token transformer:
   - `models/sign_foundation_transformer.py` (`SignFoundationModel`)
   - Training: `training/train_foundation_model.py` (uses synthetic tokens if no data)

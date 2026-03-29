@@ -132,6 +132,7 @@ class ModelLoader:
         self._models: Dict[str, Any] = {}
         self._gesture_id_to_label: Optional[Dict[int, str]] = None
         self._sign_tokenizer: Optional[SignTokenizer] = None
+        self._video_sign_tokenizer: Optional[SignTokenizer] = None
 
     def loaded_models(self):
         return list(self._models.keys())
@@ -301,6 +302,84 @@ class ModelLoader:
 
         return self._models["sign_transformer"]
 
+    def get_video_sign_transformer(self):
+        """
+        Return a sign->text transformer intended for video-derived frame features.
+
+        Source preference:
+        1) models/video_sign_transformer_{best|epoch*}.pt
+        2) fallback to models/sign_transformer_{best|epoch*}.pt
+        """
+        if "video_sign_transformer" not in self._models:
+            from ai_models.sign_transformer.train_transformer import SignTransformer
+
+            vocab_candidates = [
+                os.path.join(self.model_dir, "video_sign_transformer_vocab.json"),
+                os.path.join(self.model_dir, "sign_transformer_vocab.json"),
+            ]
+            tokenizer = None
+            for vocab_path in vocab_candidates:
+                if os.path.exists(vocab_path):
+                    try:
+                        tokenizer = SignTokenizer(vocab_path=vocab_path)
+                        break
+                    except Exception:
+                        tokenizer = None
+
+            ckpt_path = _find_latest_checkpoint(self.model_dir, "video_sign_transformer")
+            if not ckpt_path:
+                ckpt_path = _find_latest_checkpoint(self.model_dir, "sign_transformer")
+
+            feature_dim = 225
+            d_model = 512
+            num_layers = 6
+            text_vocab_size = int(getattr(tokenizer, "vocab_size", 0) or 10000)
+
+            state = None
+            if ckpt_path and os.path.exists(ckpt_path):
+                payload = torch.load(ckpt_path, map_location="cpu")
+                state = _extract_model_state(payload)
+
+                if isinstance(state, dict):
+                    try:
+                        w = state.get("encoder.input_proj.weight")
+                        if hasattr(w, "shape"):
+                            d_model = int(w.shape[0])
+                            feature_dim = int(w.shape[1])
+                    except Exception:
+                        pass
+
+                    try:
+                        w = state.get("decoder.embedding.weight")
+                        if hasattr(w, "shape"):
+                            text_vocab_size = int(w.shape[0])
+                            d_model = int(w.shape[1])
+                    except Exception:
+                        pass
+
+                    nl = _infer_transformer_num_layers(state, "encoder.encoder.layers")
+                    if nl is not None:
+                        num_layers = int(nl)
+
+            nhead = _choose_nhead(d_model, preferred=8)
+            model = SignTransformer(
+                feature_dim=feature_dim,
+                text_vocab_size=text_vocab_size,
+                d_model=d_model,
+                nhead=nhead,
+                num_layers=num_layers,
+            )
+
+            if isinstance(state, dict):
+                _load_state_dict_forgiving(model, state)
+
+            model.eval()
+            self._models["video_sign_transformer"] = model
+            if tokenizer is not None:
+                self._video_sign_tokenizer = tokenizer
+
+        return self._models["video_sign_transformer"]
+
     def get_sign_tokenizer(self) -> SignTokenizer:
         """
         Return the tokenizer used by the sign->text transformer (if trained).
@@ -322,6 +401,32 @@ class ModelLoader:
         # Fallback: a minimal tokenizer with only special tokens.
         self._sign_tokenizer = SignTokenizer()
         return self._sign_tokenizer
+
+    def get_video_sign_tokenizer(self) -> SignTokenizer:
+        """
+        Return tokenizer used by video sign->text transformer.
+
+        Source preference:
+        1) models/video_sign_transformer_vocab.json
+        2) models/sign_transformer_vocab.json
+        """
+        if self._video_sign_tokenizer is not None:
+            return self._video_sign_tokenizer
+
+        candidates = [
+            os.path.join(self.model_dir, "video_sign_transformer_vocab.json"),
+            os.path.join(self.model_dir, "sign_transformer_vocab.json"),
+        ]
+        for vocab_path in candidates:
+            if os.path.exists(vocab_path):
+                try:
+                    self._video_sign_tokenizer = SignTokenizer(vocab_path=vocab_path)
+                    return self._video_sign_tokenizer
+                except Exception:
+                    continue
+
+        self._video_sign_tokenizer = SignTokenizer()
+        return self._video_sign_tokenizer
 
     def get_diffusion_pipeline(self):
         if "diffusion" not in self._models:

@@ -20,6 +20,7 @@ import uvicorn
 import os
 import shutil
 import time
+import tempfile
 from dotenv import load_dotenv
 
 from api_server.model_loader import ModelLoader
@@ -365,6 +366,69 @@ async def sign_to_text(data: SignToTextRequest):
     sequence = data.sequence
     text = realtime.sign_to_text(sequence)
     return {"text": text}
+
+
+@app.post("/translate/video-to-text")
+async def video_to_text(
+    file: UploadFile,
+    sample_every: int = 2,
+    max_frames: int = 90,
+):
+    """
+    Translate an uploaded sign video clip to text.
+    """
+    if not file.content_type or not file.content_type.startswith("video/"):
+        if file.content_type != "application/octet-stream":
+            raise HTTPException(status_code=400, detail="Expected a video upload")
+    if sample_every < 1 or sample_every > 30:
+        raise HTTPException(status_code=400, detail="sample_every must be between 1 and 30")
+    if max_frames < 5 or max_frames > 400:
+        raise HTTPException(status_code=400, detail="max_frames must be between 5 and 400")
+
+    video_bytes = await file.read()
+    if not video_bytes:
+        raise HTTPException(status_code=400, detail="Empty video file")
+
+    tmp_path = None
+    try:
+        from vision_pipeline.video_embedding import VideoEmbeddingExtractor
+
+        with tempfile.NamedTemporaryFile(delete=False, suffix=".mp4", dir="temp") as tmp:
+            tmp.write(video_bytes)
+            tmp_path = tmp.name
+
+        extractor = VideoEmbeddingExtractor(
+            sample_every=sample_every,
+            max_frames=max_frames,
+            allow_mock=False,
+        )
+        frame_features = extractor.extract_frame_features(tmp_path)
+        if frame_features.ndim != 2 or frame_features.shape[0] == 0:
+            raise HTTPException(status_code=400, detail="No decodable sign frames found in video")
+
+        text = realtime.video_to_text(frame_features.tolist())
+        return {
+            "text": text,
+            "num_frames": int(frame_features.shape[0]),
+            "feature_dim": int(frame_features.shape[1]),
+            "sample_every": int(sample_every),
+            "max_frames": int(max_frames),
+        }
+    except HTTPException:
+        raise
+    except RuntimeError as exc:
+        detail = str(exc)
+        if "mock mode" in detail.lower():
+            raise HTTPException(status_code=503, detail=detail)
+        raise HTTPException(status_code=500, detail=f"Video-to-text inference failed: {detail}")
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"Video-to-text inference failed: {exc}")
+    finally:
+        if tmp_path and os.path.exists(tmp_path):
+            try:
+                os.remove(tmp_path)
+            except Exception:
+                pass
 
 
 @app.post("/translate/sign-to-speech")

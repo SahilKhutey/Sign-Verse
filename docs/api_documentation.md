@@ -113,6 +113,25 @@ Note:
 - Decoding uses `models/sign_transformer_vocab.json` when available; otherwise it falls back to `TOKEN_{id}`.
 - Translation quality depends on having real paired sign-to-text data (sentence-level datasets).
 
+### `POST /translate/video-to-text`
+
+Translate uploaded sign video clip to text.
+
+Accepts: multipart file upload (`video/*` or `application/octet-stream`).
+
+Query params:
+- `sample_every` (default `2`)
+- `max_frames` (default `90`)
+
+Returns:
+```json
+{
+  "text": "HELLO HOW ARE YOU",
+  "num_frames": 72,
+  "feature_dim": 225
+}
+```
+
 ### `POST /translate/text-to-sign`
 
 Accepts:

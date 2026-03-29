@@ -140,6 +140,44 @@ class RealtimeInference:
         except Exception:
             return " ".join(f"TOKEN_{t}" for t in token_ids)
 
+    def video_to_text(self, sequence):
+        """
+        Translate a video-derived feature sequence to text.
+
+        Prefers the dedicated video sign->text model when available and
+        falls back to the generic sign->text path.
+        """
+        if not sequence:
+            return ""
+
+        import torch
+        try:
+            model = self.loader.get_video_sign_transformer()
+            tokenizer = self.loader.get_video_sign_tokenizer()
+        except Exception:
+            return self.sign_to_text(sequence)
+
+        seq = torch.tensor(sequence, dtype=torch.float32)
+        if seq.ndim == 2:
+            seq = seq.unsqueeze(0)
+
+        feature_dim = getattr(model, "feature_dim", seq.size(-1))
+        if seq.size(-1) == FEATURE_DIM_225 and int(feature_dim) == TWO_HANDS_DIM:
+            seq = seq[..., HANDS_SLICE_225]
+
+        if seq.size(-1) < feature_dim:
+            pad = feature_dim - seq.size(-1)
+            seq = torch.nn.functional.pad(seq, (0, pad))
+        elif seq.size(-1) > feature_dim:
+            seq = seq[..., :feature_dim]
+
+        token_batches = model.translate(seq)
+        token_ids = token_batches[0] if token_batches else []
+        text = tokenizer.decode(token_ids).strip()
+        if text:
+            return text
+        return self.sign_to_text(sequence)
+
     def text_to_sign(self, text):
         out = self.translator.text_to_sign(text)
         return out.get("gloss") if isinstance(out, dict) else out

@@ -7,6 +7,7 @@ Added to SignVerse:
 - Modular concatenative synthesis engine (`text/gloss -> clip plan -> sentence video`)
 - Synthetic sentence-level sign video dataset generation
 - MediaPipe-based video embedding extractor for training pipelines
+- Video clip -> text transformer training path and inference endpoint
 
 ## New Components
 
@@ -22,6 +23,7 @@ Added to SignVerse:
   - `training/data_pipeline/extract_video_embeddings.py`
 - API endpoint:
   - `POST /translate/text-to-sign-video-plan`
+  - `POST /translate/video-to-text`
 
 ## 1) Build Dictionary Manifest
 
@@ -85,6 +87,43 @@ Response includes:
 - translated tokens
 - clip plan per token
 - coverage and missing tokens
+
+## 5) Build Video->Text Training Dataset
+
+Convert synthetic or curated sentence video manifest into
+`(frame_feature_sequence, text)` training files:
+
+```bash
+python training/data_pipeline/build_video_sign_text_dataset.py --input-manifest training-data/synthetic_sign_video_pairs.csv --keypoint-dir training-data/video_keypoints --labels-csv training-data/video_sign_text_labels.csv
+```
+
+## 6) Train Video Sign->Text Transformer
+
+```bash
+python training/train_video_sign_to_text.py --labels-csv training-data/video_sign_text_labels.csv --keypoint-dir training-data/video_keypoints --epochs 12
+```
+
+Artifacts:
+- `models/video_sign_transformer_*.pt`
+- `models/video_sign_transformer_vocab.json`
+
+## 7) API: Video -> Text
+
+Endpoint:
+- `POST /translate/video-to-text?sample_every=2&max_frames=90`
+
+Form field:
+- `file`: sign video clip
+
+Returns:
+
+```json
+{
+  "text": "HELLO HOW ARE YOU",
+  "num_frames": 72,
+  "feature_dim": 225
+}
+```
 
 ## Notes
 

@@ -115,6 +115,18 @@ This optional path builds sentence-level synthetic sign videos from a token->cli
 .\venv\Scripts\python.exe training\data_pipeline\extract_video_embeddings.py --input-dir datasets\isolated_videos --output-dir training-data\video_embeddings --manifest training-data\video_embeddings_manifest.csv
 ```
 
+4. Build video sign->text training set:
+
+```powershell
+.\venv\Scripts\python.exe training\data_pipeline\build_video_sign_text_dataset.py --input-manifest training-data\synthetic_sign_video_pairs.csv --keypoint-dir training-data\video_keypoints --labels-csv training-data\video_sign_text_labels.csv
+```
+
+5. Train video sign->text transformer:
+
+```powershell
+.\venv\Scripts\python.exe training\train_video_sign_to_text.py --labels-csv training-data\video_sign_text_labels.csv --keypoint-dir training-data\video_keypoints --epochs 12
+```
+
 ## Configuration
 
 Primary config:

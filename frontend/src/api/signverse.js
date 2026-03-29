@@ -49,6 +49,13 @@ export function signToText(sequence) {
   return inference.post('/translate/sign-to-text', { sequence }).then(r => r.data)
 }
 
+export function videoToText(file, sampleEvery = 2, maxFrames = 90) {
+  const form = new FormData()
+  form.append('file', file)
+  const q = `sample_every=${encodeURIComponent(sampleEvery)}&max_frames=${encodeURIComponent(maxFrames)}`
+  return inference.post(`/translate/video-to-text?${q}`, form).then(r => r.data)
+}
+
 export function classifyGestureSequence(sequence) {
   return inference.post('/gesture/classify-sequence', { sequence }).then(r => r.data)
 }
