@@ -72,6 +72,31 @@ Returns:
 { "class_id": 3, "label": "D", "confidence": 0.91 }
 ```
 
+### `POST /gesture/classify-image-cnn-fingerspell`
+
+Optional image-based ASL classifier plus server-side session decoding for
+alphabet finger-spelling.
+
+Accepts: multipart file upload (`image/*`).
+
+Query params:
+- `session_id` (default `default`)
+- `min_confidence` (default `0.4`)
+- `reset` (default `false`) clears session text state
+
+Returns:
+```json
+{
+  "class_id": 3,
+  "label": "D",
+  "confidence": 0.91,
+  "session_id": "demo",
+  "stable_label": "D",
+  "committed": "D",
+  "text": "HELLO"
+}
+```
+
 ### `POST /gesture/classify-video-lstm`
 
 Optional isolated sign classifier using InceptionV3 features + LSTM (Keras).

@@ -2,6 +2,7 @@
 
 This module adds a hackathon-style, image-based ASL classifier inspired by:
 - `harshbg/Sign-Language-Interpreter-using-Deep-Learning`
+- `loicmarie/sign-language-alphabet-recognizer`
 
 ## What Was Added
 
@@ -13,6 +14,7 @@ This module adds a hackathon-style, image-based ASL classifier inspired by:
   - `scripts/run_asl_cnn_live.py`
 - API endpoint:
   - `POST /gesture/classify-image-cnn`
+  - `POST /gesture/classify-image-cnn-fingerspell`
 
 ## Dataset Layout
 
@@ -32,13 +34,21 @@ datasets/asl_alphabet/
 
 ## Train
 
+Simple grayscale CNN:
 ```bash
-python training/train_asl_cnn_keras.py --data-dir datasets/asl_alphabet --epochs 15
+python training/train_asl_cnn_keras.py --data-dir datasets/asl_alphabet --arch simple --image-size 64 --epochs 15
+```
+
+InceptionV3 baseline (recommended):
+```bash
+python training/train_asl_cnn_keras.py --data-dir datasets/asl_alphabet --arch inceptionv3 --image-size 224 --epochs 15 --fine-tune-epochs 5
 ```
 
 Outputs:
 - `models/asl_cnn.h5`
+- `models/asl_cnn_best.h5`
 - `models/asl_cnn_labels.json`
+- `reports/asl_cnn_eval.json`
 
 ## Live Demo
 
@@ -47,11 +57,18 @@ python scripts/run_asl_cnn_live.py --camera 0 --min-confidence 0.4
 ```
 
 Press `q` to quit.
+Press `c` to clear typed text in spell mode.
+
+Finger-spelling mode:
+```bash
+python scripts/run_asl_cnn_live.py --camera 0 --spell-mode --min-confidence 0.5
+```
 
 ## API Usage
 
 Endpoint:
 - `POST /gesture/classify-image-cnn?min_confidence=0.4`
+- `POST /gesture/classify-image-cnn-fingerspell?session_id=demo&min_confidence=0.4`
 
 Form data:
 - `file`: image upload
@@ -62,6 +79,19 @@ Response:
   "class_id": 3,
   "label": "D",
   "confidence": 0.91
+}
+```
+
+Fingerspelling response adds:
+```json
+{
+  "class_id": 3,
+  "label": "D",
+  "confidence": 0.91,
+  "session_id": "demo",
+  "stable_label": "D",
+  "committed": "D",
+  "text": "HELLO"
 }
 ```
 

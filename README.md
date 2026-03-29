@@ -42,6 +42,7 @@ Runs the core inference endpoints:
 - `POST /vision/extract`
 - `POST /gesture/classify`
 - `POST /gesture/classify-image-cnn`
+- `POST /gesture/classify-image-cnn-fingerspell`
 - `POST /gesture/classify-video-lstm`
 - `POST /translate/sign-to-text`
 - `POST /translate/video-to-text`
@@ -133,11 +134,13 @@ pip install -r requirements-optional-asl-cnn.txt
 ```
 Then train:
 ```
-python training/train_asl_cnn_keras.py --data-dir datasets/asl_alphabet --epochs 15
+python training/train_asl_cnn_keras.py --data-dir datasets/asl_alphabet --arch inceptionv3 --image-size 224 --epochs 15 --fine-tune-epochs 5
 ```
 Outputs:
 - `models/asl_cnn.h5`
+- `models/asl_cnn_best.h5`
 - `models/asl_cnn_labels.json`
+- `reports/asl_cnn_eval.json`
 
 ### Train Video CNN+LSTM (Optional Keras Path)
 Prototype-oriented isolated sign recognizer inspired by video-based SLR repos:
@@ -209,6 +212,7 @@ python scripts/run_live_opencv_translate.py --camera 0
 Run optional ASL CNN live interpreter:
 ```
 python scripts/run_asl_cnn_live.py --camera 0 --min-confidence 0.4
+python scripts/run_asl_cnn_live.py --camera 0 --spell-mode --min-confidence 0.5
 ```
 
 Run optional video classifier inference:

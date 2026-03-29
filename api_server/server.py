@@ -15,7 +15,7 @@ from fastapi.responses import JSONResponse
 from starlette.status import HTTP_422_UNPROCESSABLE_ENTITY, HTTP_500_INTERNAL_SERVER_ERROR
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field, conlist
-from typing import List
+from typing import Dict, List
 import uvicorn
 import os
 import shutil
@@ -57,6 +57,7 @@ app.add_middleware(
 loader = ModelLoader()
 realtime = RealtimeInference(loader)
 ws_clients = []
+_fingerspell_sessions: Dict[str, object] = {}
 
 # Speech-to-sign pipeline (same behavior as api_gateway)
 _speech_pipeline = None
@@ -69,6 +70,25 @@ def _get_speech_pipeline():
         from ai_engine.inference_pipeline import InferencePipeline
         _speech_pipeline = InferencePipeline()
     return _speech_pipeline
+
+
+def _get_fingerspell_decoder(session_id: str, min_confidence: float):
+    from ai_models.gesture_recognition.fingerspelling import FingerSpellingDecoder
+
+    decoder = _fingerspell_sessions.get(session_id)
+    if decoder is None:
+        # Keep memory bounded for long-running API servers.
+        if len(_fingerspell_sessions) >= 200:
+            oldest = next(iter(_fingerspell_sessions))
+            _fingerspell_sessions.pop(oldest, None)
+        decoder = FingerSpellingDecoder(min_confidence=min_confidence)
+        _fingerspell_sessions[session_id] = decoder
+    else:
+        try:
+            decoder.min_confidence = float(min_confidence)
+        except Exception:
+            pass
+    return decoder
 
 
 class KeypointRequest(BaseModel):
@@ -272,6 +292,55 @@ async def classify_gesture_image_cnn(file: UploadFile, min_confidence: float = 0
         raise
     except Exception as exc:
         raise HTTPException(status_code=500, detail=f"ASL CNN inference failed: {exc}")
+
+
+@app.post("/gesture/classify-image-cnn-fingerspell")
+async def classify_gesture_image_cnn_fingerspell(
+    file: UploadFile,
+    session_id: str = "default",
+    min_confidence: float = 0.4,
+    reset: bool = False,
+):
+    """
+    ASL alphabet inference + session-based finger-spelling decoding.
+    """
+    if not session_id or len(session_id) > 100:
+        raise HTTPException(status_code=400, detail="Invalid session_id")
+    if not file.content_type or not file.content_type.startswith("image/"):
+        raise HTTPException(status_code=400, detail="Expected an image upload")
+
+    if reset:
+        _fingerspell_sessions.pop(session_id, None)
+
+    try:
+        contents = await file.read()
+        import numpy as np
+        import cv2
+
+        arr = np.frombuffer(contents, np.uint8)
+        frame = cv2.imdecode(arr, cv2.IMREAD_COLOR)
+        if frame is None:
+            raise HTTPException(status_code=400, detail="Unable to decode image")
+
+        model = loader.get_asl_cnn_model()
+        pred = model.predict(frame)
+        conf = pred.get("confidence")
+        if conf is not None and float(conf) < float(min_confidence):
+            pred["label"] = None
+
+        decoder = _get_fingerspell_decoder(session_id=session_id, min_confidence=min_confidence)
+        decoded = decoder.update(label=pred.get("label"), confidence=conf)
+        return {
+            **pred,
+            "session_id": session_id,
+            "stable_label": decoded.get("stable_label"),
+            "committed": decoded.get("committed"),
+            "text": decoded.get("text"),
+        }
+    except HTTPException:
+        raise
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"ASL fingerspelling inference failed: {exc}")
 
 
 @app.post("/gesture/classify-video-lstm")

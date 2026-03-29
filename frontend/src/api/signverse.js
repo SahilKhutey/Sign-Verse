@@ -66,6 +66,13 @@ export function classifyGestureImageCnn(file, minConfidence = 0.4) {
   return inference.post(`/gesture/classify-image-cnn?min_confidence=${encodeURIComponent(minConfidence)}`, form).then(r => r.data)
 }
 
+export function classifyGestureImageCnnFingerspell(file, sessionId = 'default', minConfidence = 0.4, reset = false) {
+  const form = new FormData()
+  form.append('file', file)
+  const query = `session_id=${encodeURIComponent(sessionId)}&min_confidence=${encodeURIComponent(minConfidence)}&reset=${encodeURIComponent(reset)}`
+  return inference.post(`/gesture/classify-image-cnn-fingerspell?${query}`, form).then(r => r.data)
+}
+
 export function classifyGestureVideoLstm(file, minConfidence = 0.4) {
   const form = new FormData()
   form.append('file', file)
