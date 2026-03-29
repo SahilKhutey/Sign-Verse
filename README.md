@@ -287,6 +287,19 @@ See `docs/RELEASE_CHECKLIST.md` before shipping releases.
 - Real-time avatar animation with Unity rig
 - End-to-end evaluation suite (WER/BLEU/MOS)
 
+## Current Status 🚀
+
+### Release: **v1.0.0** (Advanced Humanoid & Vision)
+
+#### Working
+- Unified inference API server (`api_server/`)
+- Backend service with auth, history, and WebSocket rooms (`backend/`)
+- Android app (Jetpack Compose) (`ar-vr-app/android/`)
+- Web frontend (Vite + React) (`frontend/`)
+- NLP text↔gloss training + inference (`training/train_text_gloss.py`, `nlp_translation/inference.py`)
+- **Advanced Vision Tracking** (SMPL-X, VIBE, YOLOv8)
+- **Humanoid Robotics Control** (MuJoCo, ROS 2, OpenSim)
+
 ## Repo Structure
 
 - `ai_engine/` Core AI logic and model integration
