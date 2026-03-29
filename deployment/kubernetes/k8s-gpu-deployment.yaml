@@ -1,0 +1,98 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: signverse-ai-server
+  namespace: signverse
+spec:
+  replicas: 3
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+  selector:
+    matchLabels:
+      app: signverse-ai
+  template:
+    metadata:
+      labels:
+        app: signverse-ai
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "8000"
+        prometheus.io/path: "/metrics"
+    spec:
+      containers:
+      - name: signverse-ai
+        image: gcr.io/signverse/ai-server-gpu:latest
+        ports:
+        - containerPort: 8000
+        resources:
+          limits:
+            nvidia.com/gpu: 1
+            memory: 16Gi
+            cpu: "8"
+          requests:
+            nvidia.com/gpu: 1
+            memory: 8Gi
+            cpu: "4"
+        env:
+        - name: SECRET_KEY
+          valueFrom:
+            secretKeyRef:
+              name: signverse-secrets
+              key: secret-key
+        - name: REDIS_URL
+          value: "redis://signverse-redis:6379/0"
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 8000
+          initialDelaySeconds: 60
+          periodSeconds: 15
+        readinessProbe:
+          httpGet:
+            path: /health/ready
+            port: 8000
+          initialDelaySeconds: 30
+          periodSeconds: 10
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: signverse-ai-service
+  namespace: signverse
+spec:
+  type: LoadBalancer
+  ports:
+  - port: 8000
+    targetPort: 8000
+  selector:
+    app: signverse-ai
+---
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: signverse-ai-hpa
+  namespace: signverse
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: signverse-ai-server
+  minReplicas: 2
+  maxReplicas: 10
+  metrics:
+  - type: Resource
+    resource:
+      name: cpu
+      target:
+        type: Utilization
+        averageUtilization: 70
+  - type: Pods
+    pods:
+      metric:
+        name: gpu_memory_utilization
+      target:
+        type: AverageValue
+        averageValue: 80

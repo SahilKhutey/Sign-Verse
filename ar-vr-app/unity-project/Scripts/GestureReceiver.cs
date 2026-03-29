@@ -12,7 +12,7 @@ using NativeWebSocket;
 public class GestureReceiver : MonoBehaviour
 {
     [Header("Server Settings")]
-    public string serverUrl = "ws://localhost:8888/translate?target_lang=ASL";
+    public string serverUrl = "ws://localhost:8000/ws/stream?target_lang=ASL";
     public float reconnectDelay = 3f;
 
     [Header("References")]
@@ -106,10 +106,20 @@ public class GestureReceiver : MonoBehaviour
 #endif
     }
 
-    private async void OnApplicationQuit()
+    public async void SetTargetLanguage(string langCode)
     {
+        Debug.Log($"[GestureReceiver] Switching language to: {langCode}");
         if (webSocket != null)
             await webSocket.Close();
+
+        serverUrl = $"ws://localhost:8000/ws/stream?target_lang={langCode}";
+        _ = ConnectToServer();
+    }
+
+    private void OnApplicationQuit()
+    {
+        if (webSocket != null)
+            _ = webSocket.Close();
     }
 
     [Serializable]

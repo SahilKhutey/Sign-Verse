@@ -34,14 +34,14 @@ from slowapi.util import get_remote_address
 from slowapi.errors import RateLimitExceeded
 
 logger = get_logger("signverse-backend")
-from utils.rate_limit import limiter
+from backend.utils.rate_limit import limiter
 
-from database.db_connection import init_db
-from database.db_connection import SessionLocal
+from backend.database.db_connection import init_db
+from backend.database.db_connection import SessionLocal
 from sqlalchemy import text
-from services.user_service import router as user_router
-from services.translation_service import router as translation_router
-from config import ALLOWED_ORIGINS
+from backend.services.user_service import router as user_router
+from backend.services.translation_service import router as translation_router
+from backend.config import ALLOWED_ORIGINS, INFERENCE_API_URL
 
 app = FastAPI(
     title="SignVerse Backend",
@@ -266,6 +266,11 @@ async def health_check():
     return {"status": "healthy", "service": "signverse-backend"}
 
 
+@app.on_event("startup")
+async def startup():
+    init_db()
+
+
 @app.get("/health/ready")
 async def readiness_check():
     db_ok = False
@@ -280,16 +285,16 @@ async def readiness_check():
 
     try:
         import httpx
-        from config import INFERENCE_API_URL
         async with httpx.AsyncClient(timeout=5.0) as client:
             resp = await client.get(INFERENCE_API_URL.rstrip("/") + "/health")
-            inference_ok = resp.status_code == 200
+            inference_ok = (resp.status_code == 200)
             if not inference_ok:
                 error = f"inference_error: {resp.text}"
     except Exception as e:
-        error = f"inference_error: {e}"
+        logger.exception("readiness_check_failed")
+        error = f"readiness_error: {e}"
 
-    status = "ready" if db_ok and inference_ok else "degraded"
+    status = "ready" if (db_ok and inference_ok) else "degraded"
     return {
         "status": status,
         "db_ok": db_ok,
@@ -372,11 +377,6 @@ async def dashboard_json():
     }
 
 
-@app.on_event("startup")
-async def startup():
-    init_db()
-
-
 # --- Socket.io Events ---
 @sio.event
 async def connect(sid, environ):
@@ -401,4 +401,28 @@ async def send_translation(sid, data):
     await sio.emit("new_translation", translation, room=room)
 
 if __name__ == "__main__":
-    uvicorn.run(sio_app, host="0.0.0.0", port=8001)
+    import uvicorn
+    import os
+    import socket
+    import sys
+
+    port = int(os.getenv("BACKEND_PORT", 8001))
+    host = "0.0.0.0"
+
+    # Attempt to check if port is in use
+    try:
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+            if s.connect_ex((host, port)) == 0:
+                logger.error(f"Port {port} is already in use. Please terminate the process using it.")
+                # We could exit, or try next port, but usually 8001 is expected.
+                # However, for robustness:
+                # sys.exit(1)
+    except Exception as e:
+        logger.warning(f"Could not check port status: {e}")
+
+    logger.info(f"Starting SignVerse Backend on {host}:{port}...")
+    try:
+        uvicorn.run(sio_app, host=host, port=port, log_level="info")
+    except Exception as e:
+        logger.error(f"Failed to start backend: {e}")
+        sys.exit(1)

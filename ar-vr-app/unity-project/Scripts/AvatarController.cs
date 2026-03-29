@@ -65,6 +65,14 @@ public class AvatarController : MonoBehaviour
         while (signQueue.Count > 0)
         {
             string token = signQueue.Dequeue();
+            
+            // SKIP language tags (e.g., <2ASL>)
+            if (token.StartsWith("<") && token.EndsWith(">"))
+            {
+                Debug.Log($"[AvatarController] Skipping language tag: {token}");
+                continue;
+            }
+
             yield return PlayToken(token);
             yield return new WaitForSeconds(transitionTime);
         }

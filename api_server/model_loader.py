@@ -57,16 +57,23 @@ def _extract_model_state(obj: Any) -> Any:
 
 
 def _choose_nhead(d_model: int, preferred: int = 8) -> int:
-    """Pick a head count that divides d_model (Transformer requirement)."""
-    d_model = int(d_model or 0)
-    if d_model <= 0:
-        return 1
-    if preferred > 0 and d_model % preferred == 0:
-        return int(preferred)
-
-    for h in [16, 12, 10, 8, 6, 5, 4, 3, 2, 1]:
+    """
+    Choose a number of heads that divides d_model.
+    """
+    if not d_model or d_model <= 0:
+        return preferred
+    
+    # Try common head counts
+    for h in [preferred, 16, 12, 10, 8, 6, 4, 2, 1]:
         if h <= d_model and d_model % h == 0:
-            return int(h)
+            # Additional check: head_dim should be reasonable (e.g. >= 8)
+            if d_model // h >= 8:
+                return int(h)
+    
+    # Fallback to anything that divides
+    for h in range(d_model, 0, -1):
+        if d_model % h == 0:
+            return h
     return 1
 
 

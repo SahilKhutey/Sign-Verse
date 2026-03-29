@@ -159,6 +159,13 @@ Outputs:
 - `models/video_lstm_labels.json`
 - `reports/video_lstm_eval.json`
 
+### Train Research SLR Baselines (Clean-Room)
+For architecture benchmarking (non-production by default):
+```
+python training/train_research_conv3d.py --manifest-csv training-data/video_frames_manifest.csv --seq-len 24 --image-size 112 --epochs 20
+python training/train_research_pose_gcn.py --seq-len 60 --feature-dim 225 --epochs 20
+```
+
 ### Build Concatenative Text->Sign Video Engine (Optional)
 Framework-style sentence synthesis inspired by modular sign-language-translator systems:
 ```
@@ -294,3 +301,4 @@ More details in `docs/`.
 - `docs/ALPHABET_DATA_COLLECTION.md` for webcam alphabet dataset capture workflow.
 - `docs/VIDEO_LSTM_INTEGRATION.md` for Keras video CNN+LSTM prototype flow.
 - `docs/SIGN_LANGUAGE_TRANSLATOR_INTEGRATION.md` for concatenative synthesis + video embedding workflow.
+- `docs/RESEARCH_SLR_BASELINES.md` for clean-room Conv3D and Pose-GCN baselines.

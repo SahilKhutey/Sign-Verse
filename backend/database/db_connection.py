@@ -8,8 +8,7 @@ from sqlalchemy.orm import sessionmaker
 import sys
 import os
 
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
-from config import DATABASE_URL
+from backend.config import DATABASE_URL
 
 # Enable connection pooling for production (PostgreSQL)
 connect_args = {"check_same_thread": False} if DATABASE_URL.startswith("sqlite") else {}
@@ -29,7 +28,7 @@ Base = declarative_base()
 
 def init_db():
     """Initialize database tables."""
-    from database.models import User, TranslationHistory
+    from backend.database.models import User, TranslationHistory
     Base.metadata.create_all(bind=engine)
 
 

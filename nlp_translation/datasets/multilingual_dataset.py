@@ -15,8 +15,10 @@ class MultilingualSignDataset(Dataset):
         
         self.lang_to_tag = {
             "ASL": tokenizer.ASL_TAG,
+            "DGS": tokenizer.DGS_TAG,
+            "TSL": tokenizer.TSL_TAG,
             "ISL": tokenizer.ISL_TAG,
-            "BSL": tokenizer.BSL_TAG
+            "LSA": tokenizer.LSA_TAG
         }
 
     def __len__(self):

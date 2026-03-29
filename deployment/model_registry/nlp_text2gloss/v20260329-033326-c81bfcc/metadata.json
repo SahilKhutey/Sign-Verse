@@ -1,0 +1,8 @@
+{
+  "registered_at": "2026-03-29T09:03:26.127424",
+  "source": "models\\nlp_text2gloss.pt",
+  "version": "v20260329-033326-c81bfcc",
+  "val_loss": 0.0626679498818703,
+  "val_wer": 0.057291666666666664,
+  "val_bleu": 15.304912670607733
+}

@@ -1,0 +1,8 @@
+{
+  "registered_at": "2026-03-29T07:58:14.936888",
+  "source": "models\\nlp_gloss2text.pt",
+  "version": "v20260329-022814-c81bfcc",
+  "val_loss": 0.6213086021668983,
+  "val_wer": 0.5974747474747472,
+  "val_bleu": 6.557697746567517
+}

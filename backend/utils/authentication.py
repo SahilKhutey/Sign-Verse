@@ -11,8 +11,7 @@ import sys
 import time
 import uuid
 
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
-from config import SECRET_KEY, ACCESS_TOKEN_EXPIRE_MINUTES
+from backend.config import SECRET_KEY, ACCESS_TOKEN_EXPIRE_MINUTES
 
 
 _PBKDF2_ITERATIONS = 200_000

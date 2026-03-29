@@ -1,0 +1,69 @@
+{
+  "last_updated": "2026-03-29T09:03:30.371179",
+  "models": {
+    "nlp_text2gloss": {
+      "v20260329-022814-c81bfcc": {
+        "registered_at": "2026-03-29T07:58:14.931079",
+        "source": "models\\nlp_text2gloss.pt",
+        "version": "v20260329-022814-c81bfcc",
+        "val_loss": 0.9435096762397073,
+        "val_wer": 2.082323232323234,
+        "val_bleu": 5.319470234998336
+      },
+      "v20260329-033326-c81bfcc": {
+        "registered_at": "2026-03-29T09:03:26.127424",
+        "source": "models\\nlp_text2gloss.pt",
+        "version": "v20260329-033326-c81bfcc",
+        "val_loss": 0.0626679498818703,
+        "val_wer": 0.057291666666666664,
+        "val_bleu": 15.304912670607733
+      }
+    },
+    "nlp_gloss2text": {
+      "v20260329-022814-c81bfcc": {
+        "registered_at": "2026-03-29T07:58:14.936888",
+        "source": "models\\nlp_gloss2text.pt",
+        "version": "v20260329-022814-c81bfcc",
+        "val_loss": 0.6213086021668983,
+        "val_wer": 0.5974747474747472,
+        "val_bleu": 6.557697746567517
+      },
+      "v20260329-033326-c81bfcc": {
+        "registered_at": "2026-03-29T09:03:26.142085",
+        "source": "models\\nlp_gloss2text.pt",
+        "version": "v20260329-033326-c81bfcc",
+        "val_loss": 0.05083199305227026,
+        "val_wer": 0.0,
+        "val_bleu": 15.375
+      }
+    },
+    "gesture": {
+      "v20260329-022814-c81bfcc": {
+        "registered_at": "2026-03-29T07:58:15.109552",
+        "source": "models\\gesture_model_best.pt",
+        "version": "v20260329-022814-c81bfcc",
+        "git_hash": "c81bfcc"
+      },
+      "v20260329-033326-c81bfcc": {
+        "registered_at": "2026-03-29T09:03:26.314947",
+        "source": "models\\gesture_model_best.pt",
+        "version": "v20260329-033326-c81bfcc",
+        "git_hash": "c81bfcc"
+      }
+    },
+    "sign_transformer": {
+      "v20260329-022814-c81bfcc": {
+        "registered_at": "2026-03-29T07:58:18.537295",
+        "source": "models\\sign_transformer_best.pt",
+        "version": "v20260329-022814-c81bfcc",
+        "git_hash": "c81bfcc"
+      },
+      "v20260329-033326-c81bfcc": {
+        "registered_at": "2026-03-29T09:03:30.369624",
+        "source": "models\\sign_transformer_best.pt",
+        "version": "v20260329-033326-c81bfcc",
+        "git_hash": "c81bfcc"
+      }
+    }
+  }
+}

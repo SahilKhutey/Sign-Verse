@@ -127,6 +127,20 @@ This optional path builds sentence-level synthetic sign videos from a token->cli
 .\venv\Scripts\python.exe training\train_video_sign_to_text.py --labels-csv training-data\video_sign_text_labels.csv --keypoint-dir training-data\video_keypoints --epochs 12
 ```
 
+## Optional Research Baselines (Clean-Room)
+
+Conv3D isolated recognition:
+
+```powershell
+.\venv\Scripts\python.exe training\train_research_conv3d.py --manifest-csv training-data\video_frames_manifest.csv --seq-len 24 --image-size 112 --epochs 20
+```
+
+Pose-GCN keypoint recognition:
+
+```powershell
+.\venv\Scripts\python.exe training\train_research_pose_gcn.py --seq-len 60 --feature-dim 225 --epochs 20
+```
+
 ## Configuration
 
 Primary config:

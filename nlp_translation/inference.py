@@ -35,13 +35,28 @@ class TranslationInference:
         if not os.path.exists(path):
             return None
 
+        # Load dynamic hyperparameters from report if available
+        d_model, nhead, num_layers = 256, 4, 4
+        report_path = os.path.join(os.path.dirname(self.model_dir), "reports", "nlp_eval.json")
+        if os.path.exists(report_path):
+            try:
+                import json
+                with open(report_path, "r") as f:
+                    report = json.load(f)
+                config = report.get("config", {})
+                d_model = config.get("d_model", d_model)
+                nhead = config.get("nhead", nhead)
+                num_layers = config.get("num_layers", num_layers)
+            except Exception:
+                pass
+
         model = TransformerSeq2Seq(
             src_vocab_size=self.tokenizer.vocab_size,
             tgt_vocab_size=self.tokenizer.vocab_size,
-            d_model=256,
-            nhead=4,
-            num_encoder_layers=4,
-            num_decoder_layers=4,
+            d_model=d_model,
+            nhead=nhead,
+            num_encoder_layers=num_layers,
+            num_decoder_layers=num_layers,
             dim_feedforward=1024,
             pad_id=self.tokenizer.word2idx[self.tokenizer.PAD_TOKEN],
         )
@@ -74,19 +89,24 @@ class TranslationInference:
         decoded = out.squeeze(0).tolist()
         return self.tokenizer.decode(decoded).split()
 
-    def text_to_sign(self, text: str):
+    def text_to_sign(self, text: str, language: Optional[str] = None):
         """
         Convert natural text to sign language gloss.
 
         Returns:
             dict with gloss tokens and display string
         """
+        lang = (language or "ASL").upper()
+        # Prepend language tag to input text for the unified transformer
+        input_text = f"<2{lang}> {text}"
+
         if self.text2gloss is not None:
-            gloss = self._decode(self.text2gloss, text)
+            gloss = self._decode(self.text2gloss, input_text)
         else:
-            gloss = self.grammar.convert(text)
+            gloss = self.grammar.convert(text, lang_hint=lang)
         return {
             "input": text,
+            "language": lang,
             "gloss": gloss,
             "display": self.grammar.gloss_to_string(gloss),
             "source": "model" if self.text2gloss is not None else "rule",

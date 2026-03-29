@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, Header, status
+from fastapi import APIRouter, Depends, HTTPException, Header, status, Request
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 from typing import List, Optional
@@ -9,15 +9,12 @@ import base64
 import httpx
 import asyncio
 
-# Add project root to sys.path to allow importing core
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..")))
-
-from database.db_connection import get_db
-from database.models import TranslationHistory
-from utils.authentication import get_current_user
-from utils.cache_manager import cache_manager
-from config import INFERENCE_API_URL
-from utils.rate_limit import limiter
+from backend.database.db_connection import get_db
+from backend.database.models import TranslationHistory
+from backend.utils.authentication import get_current_user
+from backend.utils.cache_manager import cache_manager
+from backend.config import INFERENCE_API_URL
+from backend.utils.rate_limit import limiter
 
 router = APIRouter()
 
@@ -138,17 +135,17 @@ class TranslationRequest(BaseModel):
 
 @router.post("/translate")
 @limiter.limit("20/minute")
-async def translate(request: TranslationRequest, db: Session = Depends(get_db), current_user: dict = Depends(verify_auth)):
+async def translate(request: Request, request_data: TranslationRequest, db: Session = Depends(get_db), current_user: dict = Depends(verify_auth)):
     """Live translation via the AI Engine (Protected)."""
     try:
         # Enforce user_id from token
-        if request.user_id != current_user["user_id"]:
+        if request_data.user_id != current_user["user_id"]:
             raise HTTPException(status_code=403, detail="Unauthorized for this user ID")
 
-        if request.input_type == "sign":
+        if request_data.input_type == "sign":
             # Expect JSON list of keypoint frames for now
             try:
-                sequence = json.loads(request.data)
+                sequence = json.loads(request_data.data)
                 if not isinstance(sequence, list):
                     raise ValueError("sequence must be a JSON list")
             except Exception:
@@ -157,9 +154,9 @@ async def translate(request: TranslationRequest, db: Session = Depends(get_db), 
                     detail="For input_type=sign, data must be a JSON list of keypoint frames."
                 )
             result = await _post_json("/translate/sign-to-text", {"sequence": sequence})
-        elif request.input_type == "audio":
+        elif request_data.input_type == "audio":
             try:
-                audio_bytes = base64.b64decode(request.data, validate=True)
+                audio_bytes = base64.b64decode(request_data.data, validate=True)
             except Exception:
                 raise HTTPException(
                     status_code=400,
@@ -167,14 +164,14 @@ async def translate(request: TranslationRequest, db: Session = Depends(get_db), 
                 )
             result = await _post_audio("/speech-to-sign/", audio_bytes)
         else:
-            result = await _post_json("/translate/text-to-sign", {"text": request.data})
+            result = await _post_json("/translate/text-to-sign", {"text": request_data.data})
         
         # Optionally save to history
         history = TranslationHistory(
-            user_id=request.user_id,
-            input_text=request.data[:255], # Truncate for DB
+            user_id=request_data.user_id,
+            input_text=request_data.data[:255], # Truncate for DB
             sign_gloss=result.get("text", "") or " ".join(result.get("tokens", []) or []),
-            translation_type=request.input_type
+            translation_type=request_data.input_type
         )
         db.add(history)
         db.commit()

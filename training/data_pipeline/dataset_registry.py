@@ -95,6 +95,19 @@ DATASETS = {
 }
 
 
+# Helper to get all languages
+ALL_LANGUAGES = sorted(list(set([info["language"] for info in DATASETS.values()])))
+
+# Standardized Language Tags Mapping
+LANGUAGE_TAGS = {
+    "ASL": "<2ASL>",
+    "DGS": "<2DGS>",
+    "TSL": "<2TSL>",
+    "ISL": "<2ISL>",
+    "LSA": "<2LSA>"
+}
+
+
 def get_dataset(name):
     """Get dataset metadata by name."""
     return DATASETS.get(name)
@@ -112,12 +125,14 @@ def total_samples():
 
 def print_summary():
     """Print a summary table of all datasets."""
-    print(f"\n{'Dataset':<20} {'Samples':>10} {'Vocab':>8} {'Lang':<6} {'Type':<16}")
-    print("-" * 65)
+    print(f"\n{'Dataset':<20} {'Samples':>10} {'Vocab':>8} {'Lang':<6} {'Tag':<10} {'Type':<16}")
+    print("-" * 75)
     for name, info in DATASETS.items():
+        lang = info['language']
+        tag = LANGUAGE_TAGS.get(lang, "N/A")
         print(f"{name:<20} {info['samples']:>10,} {info['vocab_size']:>8,} "
-              f"{info['language']:<6} {info['type']:<16}")
-    print("-" * 65)
+              f"{lang:<6} {tag:<10} {info['type']:<16}")
+    print("-" * 75)
     print(f"{'TOTAL':<20} {total_samples():>10,}\n")
 
 

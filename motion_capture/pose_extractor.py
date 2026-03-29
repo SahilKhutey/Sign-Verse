@@ -24,51 +24,55 @@ import json
 class NeuralMotionCapture:
 
     def __init__(self):
-        self.pose = mp.solutions.pose.Pose(
+        self.holistic = mp.solutions.holistic.Holistic(
             static_image_mode=False,
             model_complexity=1,
-            min_detection_confidence=0.5
-        )
-        self.hands = mp.solutions.hands.Hands(
-            static_image_mode=False,
-            max_num_hands=2,
-            min_detection_confidence=0.5
+            enable_segmentation=False,
+            min_detection_confidence=0.5,
+            min_tracking_confidence=0.5
         )
         self.mp_draw = mp.solutions.drawing_utils
+        self.mp_holistic = mp.solutions.holistic
 
     def extract_pose(self, frame):
         """
-        Extract body and hand keypoints from a single frame.
-        Returns flat numpy array of all keypoint coordinates.
+        Extract full body, face mesh, and hand keypoints using MediaPipe Holistic.
+        Returns a flat numpy array of 543 Landmarks (1629 values).
         """
         rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-
-        pose_result = self.pose.process(rgb)
-        hand_result = self.hands.process(rgb)
+        results = self.holistic.process(rgb)
 
         keypoints = []
 
-        # Body pose: 33 landmarks × 3 = 99 values
-        if pose_result.pose_landmarks:
-            for lm in pose_result.pose_landmarks.landmark:
+        # 1. Body Pose (33 Landmarks: 0-98 values)
+        if results.pose_landmarks:
+            for lm in results.pose_landmarks.landmark:
                 keypoints.extend([lm.x, lm.y, lm.z])
         else:
             keypoints.extend([0.0] * 99)
 
-        # Hands: up to 2 × 21 landmarks × 3 = 126 values
-        hand_count = 0
-        if hand_result.multi_hand_landmarks:
-            for hand in hand_result.multi_hand_landmarks:
-                for lm in hand.landmark:
-                    keypoints.extend([lm.x, lm.y, lm.z])
-                hand_count += 1
+        # 2. Face Mesh (468 Landmarks: 99-1502 values)
+        if results.face_landmarks:
+            for lm in results.face_landmarks.landmark:
+                keypoints.extend([lm.x, lm.y, lm.z])
+        else:
+            keypoints.extend([0.0] * 1404)
 
-        # Pad if fewer than 2 hands detected
-        while hand_count < 2:
+        # 3. Left Hand (21 Landmarks: 1503-1565 values)
+        if results.left_hand_landmarks:
+            for lm in results.left_hand_landmarks.landmark:
+                keypoints.extend([lm.x, lm.y, lm.z])
+        else:
             keypoints.extend([0.0] * 63)
-            hand_count += 1
 
-        return np.array(keypoints)  # 225 values (99 + 63 + 63)
+        # 4. Right Hand (21 Landmarks: 1566-1628 values)
+        if results.right_hand_landmarks:
+            for lm in results.right_hand_landmarks.landmark:
+                keypoints.extend([lm.x, lm.y, lm.z])
+        else:
+            keypoints.extend([0.0] * 63)
+
+        return np.array(keypoints)  # 1629 values (99 + 1404 + 63 + 63)
 
     def extract_video(self, video_path):
         """
@@ -105,21 +109,40 @@ class NeuralMotionCapture:
     def visualize(self, frame, draw=True):
         """Extract pose and optionally draw landmarks on frame."""
         rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-        pose_result = self.pose.process(rgb)
-        hand_result = self.hands.process(rgb)
+        results = self.holistic.process(rgb)
 
         if draw:
-            if pose_result.pose_landmarks:
+            # 1. Face Mesh
+            if results.face_landmarks:
                 self.mp_draw.draw_landmarks(
-                    frame, pose_result.pose_landmarks,
-                    mp.solutions.pose.POSE_CONNECTIONS
+                    frame, results.face_landmarks, self.mp_holistic.FACEMESH_CONTOURS,
+                    landmark_drawing_spec=None,
+                    connection_drawing_spec=self.mp_draw.DrawingSpec(color=(255, 255, 255), thickness=1, circle_radius=1)
                 )
-            if hand_result.multi_hand_landmarks:
-                for hand in hand_result.multi_hand_landmarks:
-                    self.mp_draw.draw_landmarks(
-                        frame, hand,
-                        mp.solutions.hands.HAND_CONNECTIONS
-                    )
+            
+            # 2. Body Pose
+            if results.pose_landmarks:
+                self.mp_draw.draw_landmarks(
+                    frame, results.pose_landmarks, self.mp_holistic.POSE_CONNECTIONS,
+                    self.mp_draw.DrawingSpec(color=(245, 117, 66), thickness=2, circle_radius=4),
+                    self.mp_draw.DrawingSpec(color=(245, 66, 230), thickness=2, circle_radius=2)
+                )
+
+            # 3. Left Hand
+            if results.left_hand_landmarks:
+                self.mp_draw.draw_landmarks(
+                    frame, results.left_hand_landmarks, self.mp_holistic.HAND_CONNECTIONS,
+                    self.mp_draw.DrawingSpec(color=(121, 22, 76), thickness=2, circle_radius=4),
+                    self.mp_draw.DrawingSpec(color=(121, 44, 250), thickness=2, circle_radius=2)
+                )
+
+            # 4. Right Hand
+            if results.right_hand_landmarks:
+                self.mp_draw.draw_landmarks(
+                    frame, results.right_hand_landmarks, self.mp_holistic.HAND_CONNECTIONS,
+                    self.mp_draw.DrawingSpec(color=(245, 117, 66), thickness=2, circle_radius=4),
+                    self.mp_draw.DrawingSpec(color=(245, 66, 230), thickness=2, circle_radius=2)
+                )
 
         return frame
 

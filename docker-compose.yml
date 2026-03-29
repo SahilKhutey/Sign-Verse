@@ -1,6 +1,16 @@
 version: "3.8"
 
 services:
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
   ai-engine:
     build:
       context: .
@@ -9,7 +19,9 @@ services:
       - "8000:8000"
     volumes:
       - ./models:/app/models
+      - ./datasets:/app/datasets
     environment:
+      - REDIS_URL=redis://redis:6379/0
       - MODEL_PATH=/app/models
     deploy:
       resources:
@@ -18,6 +30,11 @@ services:
             - driver: nvidia
               count: 1
               capabilities: [ gpu ]
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
 
   backend:
     build:
@@ -25,11 +42,17 @@ services:
       dockerfile: deployment/docker/Dockerfile.backend
     ports:
       - "8001:8001"
+    volumes:
+      - ./data:/app/data
+      - ./datasets:/app/datasets
     environment:
-      - DATABASE_URL=sqlite:///./signverse.db
+      - DATABASE_URL=sqlite:///app/data/signverse.db
       - AI_ENGINE_URL=http://ai-engine:8000
     depends_on:
-      - ai-engine
+      redis:
+        condition: service_healthy
+      ai-engine:
+        condition: service_healthy
 
   avatar-api:
     build:
@@ -37,9 +60,26 @@ services:
       dockerfile: deployment/docker/Dockerfile.ai
     ports:
       - "8002:8002"
-    command: [ "uvicorn", "avatar_animation.unity_bridge.animation_api:app", "--host", "0.0.0.0", "--port", "8002" ]
+    command: ["gunicorn", "-k", "uvicorn.workers.UvicornWorker", "avatar_animation.unity_bridge.animation_api:app", "--bind", "0.0.0.0:8002"]
     depends_on:
-      - ai-engine
+      ai-engine:
+        condition: service_healthy
+
+  automated-trainer:
+    build:
+      context: .
+      dockerfile: deployment/docker/Dockerfile.ai
+    volumes:
+      - ./models:/app/models
+      - ./datasets:/app/datasets
+    environment:
+      - TRAINING_THRESHOLD=50
+      - WATCH_DIR=/app/datasets/user_feedback/pending_validation
+    command: ["python3", "-m", "training.automated_trainer"]
+    depends_on:
+      ai-engine:
+        condition: service_healthy
+
   frontend:
     build:
       context: .
@@ -50,4 +90,10 @@ services:
     ports:
       - "8080:80"
     depends_on:
-      - backend
+      backend:
+        condition: service_started
+
+volumes:
+  models:
+  datasets:
+  data:

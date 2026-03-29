@@ -20,9 +20,11 @@ class SignTokenizer:
     UNK_TOKEN = "<UNK>"
     
     # Language Tags
-    ASL_TAG = "<ASL>"
-    ISL_TAG = "<ISL>"
-    BSL_TAG = "<BSL>"
+    ASL_TAG = "<2ASL>"
+    DGS_TAG = "<2DGS>"
+    TSL_TAG = "<2TSL>"
+    ISL_TAG = "<2ISL>"
+    LSA_TAG = "<2LSA>"
 
     def __init__(self, vocab_path=None):
         self.word2idx = {
@@ -31,11 +33,13 @@ class SignTokenizer:
             self.EOS_TOKEN: 2,
             self.UNK_TOKEN: 3,
             self.ASL_TAG: 4,
-            self.ISL_TAG: 5,
-            self.BSL_TAG: 6
+            self.DGS_TAG: 5,
+            self.TSL_TAG: 6,
+            self.ISL_TAG: 7,
+            self.LSA_TAG: 8
         }
         self.idx2word = {v: k for k, v in self.word2idx.items()}
-        self.vocab_size = 7
+        self.vocab_size = 9
 
         if vocab_path and os.path.exists(vocab_path):
             self.load_vocab(vocab_path)

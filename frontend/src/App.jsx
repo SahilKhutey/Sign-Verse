@@ -8,6 +8,9 @@ import LiveTranslator from './pages/LiveTranslator';
 import HistoryPage from './pages/History';
 import Collaboration from './pages/Collaboration';
 import Dashboard from './pages/Dashboard';
+import ARDashboard from './pages/ARDashboard';
+import Settings from './pages/Settings';
+import Navbar from './components/Navbar';
 
 const App = () => {
   return (
@@ -50,6 +53,8 @@ const App = () => {
           <Routes>
             <Route path="/" element={<Dashboard />} />
             <Route path="/translate" element={<LiveTranslator />} />
+            <Route path="/ar-dashboard" element={<ARDashboard />} />
+            <Route path="/settings" element={<Settings />} />
             <Route path="/collaboration" element={<Collaboration />} />
             <Route path="/history" element={<HistoryPage />} />
           </Routes>

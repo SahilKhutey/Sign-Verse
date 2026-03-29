@@ -1,31 +1,36 @@
 #!/bin/bash
-# deploy_signverse.sh
+# deploy_signverse.sh — Production Deployment Script
+
+set -e
 
 echo "--- SignVerse AI Production Deployment ---"
 
-# 1. Build and push Docker images
-echo "Building engine image..."
-docker build -t signverse/engine:latest -f deployment/docker/Dockerfile.ai .
-echo "Building api image..."
-# assuming a Dockerfile.api exists or using inference_server
-docker build -t signverse/api:latest -f deployment/docker/Dockerfile.api . 
+# Load production env
+if [ -f .env.production ]; then
+    export $(grep -v '^#' .env.production | xargs)
+fi
 
-# docker push signverse/engine:latest
-# docker push signverse/api:latest
+# 1. Build and Start with Docker Compose
+echo "Building and starting services via Docker Compose..."
+docker-compose -f docker-compose.yml build
+docker-compose -f docker-compose.yml up -d
 
-# 2. Deploy to Kubernetes
-echo "Applying Kubernetes manifests..."
-kubectl apply -f deployment/kubernetes/namespace.yaml || true
-kubectl apply -f deployment/kubernetes/backend.yaml
-# Additional manifests can be applied here
+# 2. Verify Health
+echo "Waiting for services to stabilize..."
+sleep 10
+docker-compose ps
 
-# 3. Setup monitoring
-echo "Setting up monitoring..."
-# kubectl apply -f kubernetes/monitoring/prometheus.yaml
-# kubectl apply -f kubernetes/monitoring/grafana.yaml
+# 3. Check GPU Visibility
+echo "Checking GPU status in AI Engine..."
+docker-compose exec ai-engine nvidia-smi || echo "Warning: No GPU detected in container. Falling back to CPU."
 
-# 4. Run integration tests (as smoke tests)
+# 4. Run Smoke Tests
 echo "Running smoke tests..."
-# python tests/integration_tests.py --deployment production
+# docker-compose exec backend python3 -m tests.smoke_test
 
-echo "SignVerse AI Engine deployed successfully!"
+echo ""
+echo "SignVerse AI Ecosystem is now ONLINE (Production Mode)"
+echo "  AR Dashboard: http://localhost:8080"
+echo "  API Backend:  http://localhost:8001"
+echo "  AI Inference: http://localhost:8000"
+echo "------------------------------------------"

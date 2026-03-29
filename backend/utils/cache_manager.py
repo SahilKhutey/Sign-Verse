@@ -1,7 +1,7 @@
 import redis
 import json
 import os
-from config import REDIS_HOST, REDIS_PORT, REDIS_DB
+from backend.config import REDIS_HOST, REDIS_PORT, REDIS_DB
 
 class CacheManager:
     """
