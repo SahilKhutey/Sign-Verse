@@ -132,6 +132,10 @@ Install optional dependency:
 ```
 pip install -r requirements-optional-asl-cnn.txt
 ```
+Collect your own alphabet dataset (ASL/ISL style):
+```
+python scripts/collect_alphabet_dataset.py --camera 0 --flip --labels "A,B,C,D,E,F,G,H,I,J,K,L,M,N,O,P,Q,R,S,T,U,V,W,X,Y,Z" --split-mode random --val-ratio 0.1 --image-size 224
+```
 Then train:
 ```
 python training/train_asl_cnn_keras.py --data-dir datasets/asl_alphabet --arch inceptionv3 --image-size 224 --epochs 15 --fine-tune-epochs 5
@@ -287,5 +291,6 @@ See `docs/RELEASE_CHECKLIST.md` before shipping releases.
 
 More details in `docs/`.
 - `docs/ASL_CNN_INTEGRATION.md` for Keras CNN prototype flow.
+- `docs/ALPHABET_DATA_COLLECTION.md` for webcam alphabet dataset capture workflow.
 - `docs/VIDEO_LSTM_INTEGRATION.md` for Keras video CNN+LSTM prototype flow.
 - `docs/SIGN_LANGUAGE_TRANSLATOR_INTEGRATION.md` for concatenative synthesis + video embedding workflow.

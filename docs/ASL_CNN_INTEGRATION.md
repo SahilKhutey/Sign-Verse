@@ -32,6 +32,11 @@ datasets/asl_alphabet/
     ...
 ```
 
+You can collect this structure directly from webcam:
+```bash
+python scripts/collect_alphabet_dataset.py --camera 0 --flip --labels "A,B,C,D,E,F,G,H,I,J,K,L,M,N,O,P,Q,R,S,T,U,V,W,X,Y,Z" --split-mode random --val-ratio 0.1 --image-size 224
+```
+
 ## Train
 
 Simple grayscale CNN:
