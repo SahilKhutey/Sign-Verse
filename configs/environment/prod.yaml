@@ -1,0 +1,21 @@
+# Production-specific overrides
+app:
+  environment: "production"
+  debug: false
+
+logging:
+  level: "INFO"
+  file:
+    enabled: true
+
+redis:
+  host: "redis"
+
+services:
+  pose_service:
+    base_url: "http://pose-service:8000"
+  main_api:
+    base_url: "http://main-api:8000"
+
+data:
+  base_path: "/app/data"

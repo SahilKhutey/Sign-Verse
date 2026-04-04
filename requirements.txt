@@ -1,0 +1,38 @@
+# Core
+fastapi==0.104.1
+uvicorn[standard]==0.24.0
+gunicorn==21.2.0
+
+# Data & Science
+numpy==1.24.3
+pandas==2.0.3
+scipy==1.10.1
+
+# Computer Vision
+opencv-python-headless==4.8.1.78
+mediapipe==0.10.0
+ultralytics==8.0.196
+
+# Utilities
+python-multipart==0.0.6
+python-jose[cryptography]==3.3.0
+passlib[bcrypt]==1.7.4
+redis==5.0.1
+requests==2.31.0
+python-dotenv==1.0.0
+loguru==0.7.2
+yt-dlp==2023.10.13
+watchdog==3.0.0
+
+# Orchestration & ML (for future use)
+prefect==2.10.1
+schedule==1.2.1
+mlflow==2.8.1
+torch==2.0.1
+torchvision==0.15.2
+aiofiles==23.2.1
+dynaconf[yaml]==3.2.4
+
+sqlalchemy==2.0.23
+pyarrow==14.0.1
+h5py==3.10.0

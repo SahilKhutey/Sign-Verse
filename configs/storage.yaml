@@ -1,0 +1,68 @@
+# Storage Configuration for SignVerse Tiered System
+storage:
+  # File System Tier: For raw archival and processed JSON
+  file_system:
+    base_path: "./data"
+    structure:
+      raw: "raw"
+      processed: "processed"
+      exports: "exports"
+    formats:
+      poses: "json"
+      videos: "mp4"
+      annotations: "json"
+  
+  # Metadata Database Tier: Structured Indexing (SQL Layer)
+  database:
+    # URL structure: postgresql://user:password@localhost:5432/signverse
+    url: "sqlite:///./data/metadata.db"  # Optimized for local development
+    pool_size: 20
+    max_overflow: 10
+    echo: false
+    
+    # Tier-specific Table Configuration
+    tables:
+      videos:
+        keep_history: true
+        archive_after_days: 30
+      frames:
+        index_fields: ["video_id", "frame_number", "timestamp"]
+        compress_old: true
+      persons:
+        index_fields: ["video_id", "person_id", "frame_id"]
+      trajectories:
+        index_fields: ["video_id", "person_id", "start_frame"]
+  
+  # High-Performance ML Tier: Optimized Vectorized Formats
+  high_performance:
+    parquet:
+      compression: "snappy"
+      row_group_size: 10000
+      use_dictionary: true
+    hdf5:
+      compression: "gzip"
+      compression_level: 6
+      chunks: true
+    tfrecords:
+      compression: "GZIP"
+      shard_size: 1000
+  
+  # Governance & Retention Policies
+  retention:
+    raw_videos_days: 30
+    processed_data_days: 90
+    database_records_days: 365
+    exports_days: 7
+  
+  # Performance Tuning
+  performance:
+    batch_size: 1000
+    max_concurrent_writes: 4
+    cache_size: 10000
+  
+  # Automated Backup Protocols
+  backup:
+    enabled: true
+    schedule: "0 2 * * *"  # Daily at 2 AM
+    keep_backups: 7
+    backup_path: "./backups"

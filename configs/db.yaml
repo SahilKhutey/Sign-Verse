@@ -1,0 +1,20 @@
+# Database and storage configurations
+redis:
+  host: "${REDIS_HOST|localhost}"
+  port: "${REDIS_PORT|6379}"
+  db: 0
+  decode_responses: true
+
+postgresql: # For future metadata storage
+  host: "${POSTGRES_HOST|localhost}"
+  port: "${POSTGRES_PORT|5432}"
+  user: "${POSTGRES_USER|signverse}"
+  password: "${POSTGRES_PASSWORD|password}"
+  database: "${POSTGRES_DB|signverse}"
+
+minio: # For future blob storage
+  endpoint: "${MINIO_ENDPOINT|localhost:9000}"
+  access_key: "${MINIO_ACCESS_KEY|minioadmin}"
+  secret_key: "${MINIO_SECRET_KEY|minioadmin}"
+  secure: false
+  default_bucket: "videos"

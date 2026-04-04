@@ -1,0 +1,101 @@
+version: '3.8'
+
+services:
+  # Redis: Pose Sequence Cache & Session Store
+  redis:
+    build:
+      context: .
+      dockerfile: infra/docker/redis.Dockerfile
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    environment:
+      - REDIS_PASSWORD=${REDIS_PASSWORD:-secret}
+    networks:
+      - signverse-network
+    restart: always
+
+  # Backend API: AI Foundation Server
+  backend:
+    build:
+      context: .
+      dockerfile: infra/docker/backend.Dockerfile
+    ports:
+      - "8000:8000"
+    environment:
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - REDIS_PASSWORD=${REDIS_PASSWORD:-secret}
+      - ENVIRONMENT=development
+    volumes:
+      - ./data:/app/data
+      - ./configs:/app/configs
+      - ./core:/app/core
+      - ./api:/app/api
+    depends_on:
+      - redis
+    networks:
+      - signverse-network
+    restart: on-failure
+
+  # Frontend: SignVerse Dashboard (Next.js)
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: ../infra/docker/frontend.Dockerfile
+    ports:
+      - "3000:3000"
+    environment:
+      - NEXT_PUBLIC_API_URL=http://localhost:8000
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules # Optimization to use container's node_modules
+    depends_on:
+      - backend
+    networks:
+      - signverse-network
+    restart: always
+
+  # Prometheus: Time-series Monitoring
+  prometheus:
+    image: prom/prometheus:latest
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./infra/monitoring/prometheus.yml:/etc/prometheus/prometheus.yml
+      - prometheus_data:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--storage.tsdb.retention.time=200h'
+      - '--web.enable-lifecycle'
+    depends_on:
+      - backend
+    networks:
+      - signverse-network
+
+  # Grafana: Monitoring Dashboards
+  grafana:
+    image: grafana/grafana:latest
+    ports:
+      - "3001:3000"
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+      - GF_USERS_ALLOW_SIGN_UP=false
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./infra/monitoring/grafana/provisioning:/etc/grafana/provisioning
+    depends_on:
+      - prometheus
+    networks:
+      - signverse-network
+
+volumes:
+  redis_data:
+  prometheus_data:
+  grafana_data:
+
+networks:
+  signverse-network:
+    driver: bridge

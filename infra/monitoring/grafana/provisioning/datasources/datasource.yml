@@ -1,0 +1,16 @@
+# Grafana Datasource Provisioning
+# Automatically configures Prometheus as the default data source upon startup
+
+apiVersion: 1
+
+datasources:
+  - name: Prometheus
+    type: prometheus
+    access: proxy
+    url: http://prometheus:9090 # Internal Docker/Kubernetes service URL
+    isDefault: true
+    version: 1
+    editable: false # Prevent manual overriding in the UI to ensure IaC consistency
+    jsonData:
+      timeInterval: "15s" # Synchronized with Prometheus scrape interval
+      httpMethod: "POST"

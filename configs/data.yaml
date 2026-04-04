@@ -1,0 +1,26 @@
+# Data layer configuration
+data:
+  base_path: "./data"  # Relative to project root, or absolute path
+  
+  file_formats:
+    video: [".mp4", ".avi", ".mov", ".mkv"]
+    image: [".jpg", ".jpeg", ".png"]
+    pose: [".json", ".npy", ".pkl"]
+  
+  validation:
+    min_video_duration: 1.0  # seconds
+    max_video_duration: 300.0 # seconds
+    min_resolution: [640, 480]
+    required_framerate: 30
+  
+  retention:
+    raw_data_days: 30
+    processed_data_days: 90
+    datasets_keep_versions: 5
+
+  # Dataset creation parameters
+  dataset_splits:
+    train: 0.7
+    val: 0.15
+    test: 0.15
+    random_seed: 42

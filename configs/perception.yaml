@@ -1,0 +1,75 @@
+# Perception pipeline configuration
+perception:
+  # Detection settings
+  detection:
+    model_size: "m"  # n, s, m, l, x
+    confidence_threshold: 0.6
+    max_persons: 10
+  
+  # Tracking settings
+  tracking:
+    max_lost_frames: 30
+    iou_threshold: 0.3
+    min_confidence: 0.4
+  
+  # Pose estimation settings
+  pose_estimation:
+    model_complexity: 2  # 0, 1, 2
+    min_detection_confidence: 0.5
+    min_tracking_confidence: 0.5
+    smooth_landmarks: true
+  
+  # Feature extraction settings
+  feature_extraction:
+    window_size: 5
+    calculate_velocity: true
+    calculate_acceleration: true
+    detect_gestures: true
+    classify_expressions: true
+  
+  # Normalization settings
+  normalization:
+    reference_height: 1.7  # meters
+    smoothing_window: 5
+    use_kalman_filter: true
+    handle_missing_data: true
+  
+  # Storage settings
+  storage:
+    backends: ["redis", "database", "file"]
+    redis_url: "redis://localhost:6379"
+    database_url: "sqlite:///./data/pose_data.db"
+    file_path: "./data/processed/poses"
+    file_format: "json"  # json, parquet
+  
+  # Depth estimation settings
+  depth_estimation:
+    model_preset: "balanced"  # fast, balanced, accurate
+    device_profile: "webcam_720p"  # webcam_720p, mobile_4k, fisheye_wide
+    use_gpu: true
+    max_point_cloud_points: 10000
+
+  # Human-Object Interaction (HOI) settings
+  hoi:
+    spatial_threshold: 0.25
+    temporal_window: 15
+    min_interaction_confidence: 0.5
+    correlation_threshold: 0.6
+    detect_holding: true
+    detect_using: true
+    detect_looking_at: true
+
+  # Performance settings
+  performance:
+    target_fps: 30
+    batch_processing: false
+    gpu_acceleration: true
+    max_queue_size: 100
+  
+  # Output settings
+  output:
+    include_visualization: true
+    include_raw_data: false
+    include_features: true
+    include_hoi_states: true
+    compression: true

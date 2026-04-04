@@ -1,0 +1,106 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: signverse-backend
+  namespace: signverse
+  labels:
+    app: signverse-backend
+    tier: backend
+    component: api
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: signverse-backend
+      tier: backend
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 1
+  template:
+    metadata:
+      labels:
+        app: signverse-backend
+        tier: backend
+      annotations:
+        # Standard Prometheus scraping configuration
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "8000"
+        prometheus.io/path: "/metrics"
+    spec:
+      containers:
+      - name: backend
+        # Note: Replace 'your-registry' with the actual container registry URL
+        image: your-registry/signverse-backend:latest
+        imagePullPolicy: IfNotPresent
+        ports:
+        - containerPort: 8000
+          name: http-api
+        env:
+        - name: ENVIRONMENT
+          value: "production"
+        - name: REDIS_HOST
+          value: "signverse-redis"
+        - name: REDIS_PORT
+          value: "6379"
+        - name: REDIS_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: redis-secret
+              key: password
+        resources:
+          requests:
+            memory: "512Mi"
+            cpu: "250m"
+          limits:
+            memory: "1Gi"
+            cpu: "500m"
+        livenessProbe:
+          httpGet:
+            path: /api/v1/health
+            port: 8000
+          initialDelaySeconds: 30
+          periodSeconds: 15
+          timeoutSeconds: 5
+          failureThreshold: 3
+        readinessProbe:
+          httpGet:
+            path: /api/v1/health
+            port: 8000
+          initialDelaySeconds: 10
+          periodSeconds: 10
+          timeoutSeconds: 3
+          failureThreshold: 2
+        volumeMounts:
+        - name: data-volume
+          mountPath: /app/data
+        - name: config-volume
+          mountPath: /app/configs
+      volumes:
+      - name: data-volume
+        persistentVolumeClaim:
+          claimName: data-pvc
+      - name: config-volume
+        configMap:
+          name: backend-config
+      restartPolicy: Always
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: signverse-backend
+  namespace: signverse
+  labels:
+    app: signverse-backend
+    tier: backend
+spec:
+  selector:
+    app: signverse-backend
+    tier: backend
+  ports:
+  - port: 8000
+    targetPort: 8000
+    protocol: TCP
+    name: api-port
+  type: ClusterIP

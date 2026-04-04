@@ -1,0 +1,76 @@
+# AI model parameters and configurations
+training:
+  general:
+    seed: 42
+    device: "auto"  # auto, cpu, cuda, mps
+    precision: "32"  # 32, 16, bf16
+    log_dir: "./models/experiments"
+    checkpoint_dir: "./models/checkpoints"
+    early_stopping_patience: 10
+    max_epochs: 100
+
+  pose_model:
+    architecture: "transformer"
+    input_dim: 51  # 17 keypoints * 3 (x, y, confidence)
+    hidden_dim: 256
+    num_layers: 4
+    num_heads: 8
+    dropout: 0.1
+    learning_rate: 0.001
+    batch_size: 32
+    weight_decay: 0.01
+    gradient_clip: 1.0
+
+  action_model:
+    architecture: "lstm"
+    input_dim: 51
+    hidden_dim: 128
+    num_layers: 2
+    bidirectional: true
+    dropout: 0.3
+    learning_rate: 0.0005
+    batch_size: 16
+    sequence_length: 30  # frames
+
+  optimizer:
+    type: "adamw"
+    betas: [0.9, 0.999]
+    eps: 1e-8
+
+  scheduler:
+    type: "cosine"
+    warmup_epochs: 5
+    t_max: 50
+
+inference:
+  pose:
+    model_path: "./models/checkpoints/best_pose_model.pt"
+    confidence_threshold: 0.5
+    max_batch_size: 64
+    device: "cuda"  # Prefer GPU for inference
+
+  action:
+    model_path: "./models/checkpoints/best_action_model.pt"
+    sequence_length: 30
+    smoothing_window: 5
+
+data:
+  train_split: 0.7
+  val_split: 0.15
+  test_split: 0.15
+  normalization: "minmax"
+  augmentation:
+    rotation_range: [-10, 10]
+    scale_range: [0.9, 1.1]
+    translation_range: [-0.1, 0.1]
+    temporal_stride: [1, 3]
+
+evaluation:
+  metrics:
+    - "accuracy"
+    - "precision"
+    - "recall"
+    - "f1"
+    - "confusion_matrix"
+  test_interval: 1  # epochs
+  save_best: "val_loss"

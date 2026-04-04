@@ -1,0 +1,20 @@
+# Core application settings
+app:
+  name: "signverse-system"
+  version: "0.1.0"
+  description: "A modular system for 3D human pose estimation and AI simulation."
+  environment: "${ENVIRONMENT|development}" # Dynaconf will read from .env or use default
+
+api:
+  host: "0.0.0.0"
+  port: 8000
+  workers: 2
+  root_path: "" # For proxy setups (e.g., /api/v1)
+
+cors:
+  origins:
+    - "http://localhost:3000" # Frontend dev server
+    - "http://localhost:8001" # Main API
+  allow_credentials: true
+  methods: ["*"]
+  headers: ["*"]

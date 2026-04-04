@@ -1,0 +1,60 @@
+# Blender and simulation configuration
+blender:
+  executable_path: "C:\\Program Files\\Blender Foundation\\Blender 3.3\\blender.exe"  # Windows default
+  python_path: "C:\\Program Files\\Blender Foundation\\Blender 3.3\\3.3\\python"
+  render_engine: "CYCLES"  # CYCLES, EEVEE
+  samples: 128
+  resolution: [1920, 1080]
+  output_format: "PNG"  # PNG, JPEG, FFMPEG
+
+animation:
+  fps: 30
+  interpolation: "BEZIER"  # BEZIER, LINEAR, CONSTANT
+  keyframe_step: 1  # Frame interval for keyframing
+  smoothing: true
+  smoothing_window: 5
+  bone_lengths:
+    upper_arm: 0.3
+    lower_arm: 0.25
+    hand: 0.15
+    upper_leg: 0.4
+    lower_leg: 0.35
+    foot: 0.2
+
+rigging:
+  skeleton_type: "humanoid"  # humanoid, robotic, custom
+  bone_naming_convention: "standard"  # standard, mixamo, custom
+  inverse_kinematics: true
+  ik_chain_lengths:
+    arm: 3
+    leg: 3
+  constraints:
+    rotation_limits: true
+    location_limits: true
+
+export:
+  formats: ["fbx", "glb", "bvh"]
+  fbx:
+    scale: 1.0
+    apply_transform: true
+    bake_animations: true
+  bvh:
+    frame_step: 1
+    root_transform: true
+
+physics:
+  gravity: -9.8
+  collision_margins: 0.01
+  solver_iterations: 50
+  constraint_iterations: 10
+
+robotic:
+  joint_limits:
+    shoulder: [-90, 180]
+    elbow: [0, 160]
+    wrist: [-90, 90]
+    hip: [-45, 120]
+    knee: [0, 160]
+    ankle: [-45, 45]
+  max_velocity: 180  # degrees per second
+  acceleration: 90   # degrees per second^2

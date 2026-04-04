@@ -1,0 +1,18 @@
+# Structured logging configuration
+logging:
+  level: "INFO"
+  serialization: "json" # For structured logging to ELK/Grafana Loki
+  rotation: "10 MB"
+  retention: "1 week"
+
+  sinks:
+    console:
+      enabled: true
+      level: "DEBUG"
+      format: "<green>{time:YYYY-MM-DD HH:mm:ss.SSS}</green> | <level>{level: <8}</level> | <cyan>{name}</cyan>:<cyan>{function}</cyan>:<cyan>{line}</cyan> - <level>{message}</level>"
+    
+    file:
+      enabled: true
+      path: "./logs/app.log"
+      level: "INFO"
+      rotation: "10 MB"

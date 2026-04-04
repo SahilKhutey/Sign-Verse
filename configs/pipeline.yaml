@@ -1,0 +1,86 @@
+# Pipeline and workflow configurations
+pipelines:
+  ingestion:
+    youtube:
+      max_videos_per_query: 10
+      max_duration: 300  # seconds
+      resolution: "720p"
+      output_dir: "${DATA_BASE_PATH}/raw/youtube_videos"
+    upload:
+      watch_dir: "${DATA_BASE_PATH}/raw/uploads"
+      allowed_extensions: [".mp4", ".avi", ".mov", ".mkv"]
+
+  preprocessing:
+    frame_extraction:
+      fps: 30
+      format: "jpg"
+      quality: 95
+      output_dir: "${DATA_BASE_PATH}/processed/frames"
+    video_cleaning:
+      min_duration: 1.0
+      max_duration: 300.0
+      min_resolution: [640, 480]
+      target_framerate: 30
+
+  pose_estimation:
+    mediapipe:
+      model_complexity: 2
+      min_detection_confidence: 0.5
+      min_tracking_confidence: 0.5
+      output_format: "json"
+      output_dir: "${DATA_BASE_PATH}/processed/poses"
+    openpose:
+      model_folder: "./models/openpose"
+      output_format: "json"
+      output_dir: "${DATA_BASE_PATH}/processed/poses"
+
+  labeling:
+    auto_labeler:
+      confidence_threshold: 0.7
+      interpolation: true
+      smoothing: true
+      output_dir: "${DATA_BASE_PATH}/labeled/actions"
+    manual_tool:
+      port: 8080
+      allowed_origins: ["http://localhost:3000"]
+
+  transformation:
+    normalization:
+      method: "minmax"
+      reference_joint: "hip_center"
+      output_dir: "${DATA_BASE_PATH}/processed/normalized"
+    skeleton_mapping:
+      schema: "coco_to_custom"
+      output_dir: "${DATA_BASE_PATH}/processed/mapped"
+
+  orchestration:
+    max_parallel_tasks: 4
+    retry_attempts: 3
+    retry_delay: 30  # seconds
+    timeout: 3600  # seconds
+    result_persistence: true
+
+workflows:
+  full_processing_pipeline:
+    description: "Complete pipeline from raw video to labeled poses"
+    steps:
+      - name: "ingest_video"
+        task: "ingestion.downloader.download_youtube_video"
+      - name: "extract_frames"
+        task: "preprocessing.frame_extractor.extract_frames"
+        depends_on: ["ingest_video"]
+      - name: "estimate_poses"
+        task: "pose_estimation.mediapipe_pipeline.process_video"
+        depends_on: ["extract_frames"]
+      - name: "auto_label"
+        task: "labeling.auto_labeler.process_poses"
+        depends_on: ["estimate_poses"]
+      - name: "normalize_data"
+        task: "transformation.normalize_joints.normalize_sequence"
+        depends_on: ["estimate_poses"]
+
+  quick_pose_pipeline:
+    description: "Fast pipeline for pose estimation only"
+    steps:
+      - name: "estimate_poses"
+        task: "pose_estimation.mediapipe_pipeline.process_video"

@@ -1,0 +1,104 @@
+version: '3.8'
+
+# Define a custom network so all services can communicate by name
+networks:
+  signverse-network:
+    driver: bridge
+    name: ${NETWORK_NAME}
+
+# Define shared volumes
+volumes:
+  redis_data: {}  # Persist Redis data
+  signverse_data:  # Persistent data volume for the ecosystem
+
+services:
+  # Message Broker & Cache
+  redis:
+    image: redis:7-alpine
+    container_name: signverse-redis
+    restart: unless-stopped
+    networks:
+      - signverse-network
+    ports:
+      - "6379:6379"  # Expose for local debugging
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+    command: redis-server --appendonly yes
+
+  # Service 1: 2D Pose Extraction
+  pose-service:
+    build:
+      context: ./services/pose-service
+      dockerfile: Dockerfile
+    container_name: signverse-pose-service
+    restart: unless-stopped
+    networks:
+      - signverse-network
+    environment:
+      - ENVIRONMENT=${ENVIRONMENT}
+      - REDIS_HOST=${REDIS_HOST}
+      - REDIS_PORT=${REDIS_PORT}
+      - POSE_MODEL_COMPLEXITY=2 # Override default via env
+    volumes:
+      - signverse_data:/app/data:rw
+      - ./configs:/app/configs:ro # Mount configs directory
+      - ./core:/app/core:ro # Mount core settings
+    depends_on:
+      redis:
+        condition: service_healthy
+
+  # Service 2: Main Orchestration API
+  main-api:
+    build:
+      context: ./api/main-api
+      dockerfile: Dockerfile
+    container_name: signverse-main-api
+    restart: unless-stopped
+    networks:
+      - signverse-network
+    environment:
+      - REDIS_HOST=${REDIS_HOST}
+      - REDIS_PORT=${REDIS_PORT}
+      - POSE_SERVICE_HOST=${POSE_SERVICE_HOST}
+      - POSE_SERVICE_PORT=${POSE_SERVICE_PORT}
+    ports:
+      - "8001:8000"  # Map host port 8001 to container port 8000
+    depends_on:
+      - redis
+      - pose-service
+    volumes:
+      - signverse_data:/app/data:rw
+      - ./configs:/app/configs:ro
+      - ./core:/app/core:ro
+
+  # Service 3: Data Validation
+  data-validator:
+    build:
+      context: ./services/data-validator
+    container_name: signverse-data-validator
+    restart: unless-stopped
+    networks:
+      - signverse-network
+    volumes:
+      - signverse_data:/app/data:rw
+      - ./configs:/app/configs:ro
+      - ./core:/app/core:ro
+    depends_on:
+      - redis
+      - pose-service
+
+  # --- SERVICES TO BE ADDED IN FUTURE COMMANDS ---
+  # triangulation-service:
+  #   build: ./services/triangulation-service
+  #   ...
+  # minio:
+  #   image: minio/minio
+  #   ...
+  # postgres:
+  #   image: postgres:15
+  #   ...

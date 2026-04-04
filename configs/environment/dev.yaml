@@ -1,0 +1,19 @@
+# Development-specific overrides
+app:
+  environment: "development"
+  debug: true
+
+logging:
+  level: "DEBUG"
+
+redis:
+  host: "localhost"
+
+services:
+  pose_service:
+    base_url: "http://localhost:8000"
+  main_api:
+    base_url: "http://localhost:8001"
+
+data:
+  base_path: "./data/local"

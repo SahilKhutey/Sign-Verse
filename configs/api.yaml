@@ -1,0 +1,31 @@
+# API-specific configuration
+api:
+  rate_limiting:
+    enabled: true
+    max_requests: 100
+    time_window: 60  # seconds
+  
+  upload:
+    max_file_size: 100  # MB
+    allowed_extensions: [".mp4", ".avi", ".mov", ".mkv"]
+    chunk_size: 1048576  # 1MB chunks (1024 * 1024)
+    timeout: 300  # seconds
+  
+  inference:
+    timeout: 30  # seconds
+    max_batch_size: 10
+  
+  simulation:
+    timeout: 60  # seconds
+    max_animation_length: 300  # frames
+  
+  security:
+    enabled: true
+    cors_origins: ["http://localhost:3000", "http://localhost:8000"]
+    api_key_header: "X-API-Key"
+    allowed_api_keys: []  # Populate with actual keys in production
+
+api_logging:
+  request_logging: true
+  response_logging: true
+  log_level: "INFO"
