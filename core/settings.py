@@ -2,14 +2,15 @@
 Pydantic models for type-safe configuration access.
 These models validate configuration at runtime and provide IDE autocompletion.
 """
-from pydantic import BaseSettings, Field, validator, AnyUrl
+from pydantic import Field, validator, AnyUrl
+from pydantic_settings import BaseSettings
 from typing import List, Optional, Dict, Any
 from pathlib import Path
 
 class AppSettings(BaseSettings):
     """Application settings."""
-    name: str = Field(..., env="APP_NAME")
-    version: str = Field(..., env="APP_VERSION")
+    name: str = Field("SignVerse", env="APP_NAME")
+    version: str = Field("1.0.0", env="APP_VERSION")
     environment: str = Field("development", env="ENVIRONMENT")
     debug: bool = Field(False, env="DEBUG")
     
@@ -22,6 +23,7 @@ class AppSettings(BaseSettings):
     class Config:
         env_file = ".env"
         case_sensitive = False
+        extra = "ignore"
 
 class LoggingSettings(BaseSettings):
     """Logging configuration."""
@@ -38,6 +40,7 @@ class LoggingSettings(BaseSettings):
     
     class Config:
         env_file = ".env"
+        extra = "ignore"
 
 class RedisSettings(BaseSettings):
     """Redis connection settings."""
@@ -53,6 +56,7 @@ class RedisSettings(BaseSettings):
     
     class Config:
         env_file = ".env"
+        extra = "ignore"
 
 class PoseModelSettings(BaseSettings):
     """Pose estimation model parameters."""
@@ -75,6 +79,7 @@ class PoseModelSettings(BaseSettings):
     
     class Config:
         env_file = ".env"
+        extra = "ignore"
 
 class PipelineSettings(BaseSettings):
     """Pipeline configuration."""
@@ -91,6 +96,17 @@ class PipelineSettings(BaseSettings):
     
     class Config:
         env_file = ".env"
+        extra = "ignore"
+
+class YouTubeSettings(BaseSettings):
+    """YouTube processing configuration."""
+    base_path: Path = Field(Path("./data/youtube"), env="YOUTUBE_BASE_PATH")
+    max_concurrent_jobs: int = Field(2, env="YOUTUBE_MAX_CONCURRENT_JOBS")
+    cookies_path: Optional[Path] = Field(Path("./configs/cookies.txt"), env="YOUTUBE_COOKIES_PATH")
+    
+    class Config:
+        env_file = ".env"
+        extra = "ignore"
 
 # Composite settings model
 class Settings(BaseSettings):
@@ -100,9 +116,16 @@ class Settings(BaseSettings):
     redis: RedisSettings = Field(default_factory=RedisSettings)
     pose_model: PoseModelSettings = Field(default_factory=PoseModelSettings)
     pipeline: PipelineSettings = Field(default_factory=PipelineSettings)
+    youtube: YouTubeSettings = Field(default_factory=YouTubeSettings)
+    
+    @property
+    def DATA_DIR(self) -> Path:
+        """Alias for root data directory."""
+        return Path("./data")
     
     class Config:
         env_file = ".env"
+        extra = "ignore"
 
 # Global settings instance
 settings = Settings()

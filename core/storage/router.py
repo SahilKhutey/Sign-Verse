@@ -93,3 +93,15 @@ class StorageTierRouter:
     def get_backend(self, name: str) -> Optional[BaseStorageBackend]:
         """Get a specific storage backend by name."""
         return self.backends.get(name)
+    def close(self):
+        """Shutdown all storage backends and release resources."""
+        for name, backend in self.backends.items():
+            try:
+                # Backend classes might have their own shutdown/close
+                if hasattr(backend, 'close'):
+                    backend.close()
+                elif hasattr(backend, 'shutdown'):
+                    backend.shutdown()
+            except Exception as e:
+                logger.error(f"Error closing backend '{name}': {e}")
+        logger.info("Storage tier router shut down")

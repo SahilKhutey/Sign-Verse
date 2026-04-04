@@ -1,0 +1,15 @@
+{
+  "/_not-found": "app/_not-found.js",
+  "/analytics/page": "app/analytics/page.js",
+  "/datasets/page": "app/datasets/page.js",
+  "/interactions/page": "app/interactions/page.js",
+  "/models/page": "app/models/page.js",
+  "/monitoring/page": "app/monitoring/page.js",
+  "/page": "app/page.js",
+  "/pipelines/page": "app/pipelines/page.js",
+  "/pose/page": "app/pose/page.js",
+  "/replay/page": "app/replay/page.js",
+  "/settings/page": "app/settings/page.js",
+  "/tracking/page": "app/tracking/page.js",
+  "/youtube/page": "app/youtube/page.js"
+}

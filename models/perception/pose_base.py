@@ -41,10 +41,10 @@ class BasePoseEstimator(ABC):
         """
         pass
     
-    @abstractmethod
     def estimate_batch(self, frames: List[np.ndarray], bboxes: Optional[List[np.ndarray]] = None) -> List[PoseResult]:
         """
         Estimate pose in multiple frames.
+        Default implementation loops over single-frame estimation.
         
         Args:
             frames: List of input frames
@@ -53,7 +53,10 @@ class BasePoseEstimator(ABC):
         Returns:
             List of PoseResult objects
         """
-        pass
+        if bboxes is None:
+            bboxes = [None] * len(frames)
+        
+        return [self.estimate(frame, bbox) for frame, bbox in zip(frames, bboxes)]
     
     def filter_by_confidence(self, result: PoseResult) -> PoseResult:
         """Filter landmarks by confidence threshold."""

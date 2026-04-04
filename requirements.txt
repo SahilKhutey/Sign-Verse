@@ -21,15 +21,17 @@ redis==5.0.1
 requests==2.31.0
 python-dotenv==1.0.0
 loguru==0.7.2
-yt-dlp==2023.10.13
+yt-dlp==2023.11.16
+python-dateutil==2.8.2
 watchdog==3.0.0
 
 # Orchestration & ML (for future use)
 prefect==2.10.1
 schedule==1.2.1
 mlflow==2.8.1
-torch==2.0.1
-torchvision==0.15.2
+torch==2.1.0
+torchvision==0.16.0
+Pillow==10.0.1
 aiofiles==23.2.1
 dynaconf[yaml]==3.2.4
 

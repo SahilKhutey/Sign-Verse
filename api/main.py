@@ -22,6 +22,9 @@ from .routes.upload import router as upload_router
 from .routes.inference import router as inference_router
 from .routes.simulation import router as simulation_router
 from .routes.monitoring import router as monitoring_router
+from .routes.youtube import router as youtube_router
+from .routes.datasets import router as datasets_router
+from .routes.dataset import router as dataset_router
 
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
@@ -117,6 +120,9 @@ app.include_router(upload_router, prefix="/api/v1", tags=["Upload"])
 app.include_router(inference_router, prefix="/api/v1", tags=["Inference"])
 app.include_router(simulation_router, prefix="/api/v1", tags=["Simulation"])
 app.include_router(monitoring_router, prefix="/api/v1", tags=["Monitoring"])
+app.include_router(youtube_router, prefix="/api/v1/youtube", tags=["YouTube Analytics"])
+app.include_router(datasets_router, prefix="/api/v1/datasets", tags=["Dataset Management"])
+app.include_router(dataset_router, prefix="/api/v1/dataset", tags=["Dataset Quick Actions"])
 
 # Custom docs endpoint
 @app.get("/docs", include_in_schema=False)

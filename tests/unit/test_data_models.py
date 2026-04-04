@@ -1,91 +1,69 @@
 """
-Unit tests for data models and validation.
+Unit tests for SignVerse 3D Physical Intelligence Data Models.
 """
 import pytest
-from datetime import datetime
+import numpy as np
 from pydantic import ValidationError
-
-from core.data_models import PoseData, Keypoint, DatasetManifest
+from core.data_models import (
+    SkeletonFrame, 
+    BodyJoints, 
+    HandJoints, 
+    Vector3D, 
+    JointType,
+    LandmarkType
+)
 
 class TestDataModels:
-    """Test data model validation."""
+    """Test validation and integrity of 3D data models."""
     
-    def test_keypoint_validation(self):
-        """Test Keypoint model validation."""
-        # Valid keypoint
-        valid_kp = Keypoint(
-            id=0,
-            name="nose",
-            x=0.5,
-            y=0.5,
-            z=0.0,
-            confidence=0.9,
-            visible=True
-        )
-        assert valid_kp.id == 0
-        assert valid_kp.confidence == 0.9
+    def test_vector3d_validation(self):
+        """Test Vector3D position validation."""
+        # Valid vector
+        v = Vector3D(x=1.5, y=2.0, z=-0.5, confidence=0.9)
+        assert v.x == 1.5
+        assert v.confidence == 0.9
         
         # Invalid confidence
         with pytest.raises(ValidationError):
-            Keypoint(
-                id=0,
-                name="nose",
-                x=0.5,
-                y=0.5,
-                confidence=1.5,  # > 1.0
-                visible=True
-            )
-    
-    def test_posedata_validation(self):
-        """Test PoseData model validation."""
-        keypoints = [
-            Keypoint(
-                id=i,
-                name=f"joint_{i}",
-                x=0.5,
-                y=0.5,
-                z=0.0,
-                confidence=0.8,
-                visible=True
-            )
-            for i in range(5)
-        ]
-        
-        # Valid pose data
-        pose_data = PoseData(
-            source_video="test_video.mp4",
-            frame_number=1,
-            timestamp=1.0,
-            keypoints=keypoints
+            Vector3D(x=0, y=0, z=0, confidence=1.5)
+
+    def test_body_joints_mapping(self):
+        """Test BodyJoints naming and access."""
+        joints = BodyJoints()
+        # Ensure we have common joints listed in the class fields
+        fields = joints.model_fields.keys()
+        assert "nose" in fields
+        assert "left_shoulder" in fields
+        # MediaPipe pose has 33 points, but we only define a subset in BodyJoints currently
+        assert len(fields) >= 15
+
+    def test_skeleton_frame_composition(self):
+        """Test the composition of a complete SkeletonFrame."""
+        # Mock body joints data
+        body = BodyJoints(
+            nose=Vector3D(x=0.5, y=0.5, z=0.0, confidence=0.8),
+            left_shoulder=Vector3D(x=0.4, y=0.6, z=0.0, confidence=0.9)
         )
-        assert pose_data.frame_number == 1
-        assert len(pose_data.keypoints) == 5
         
-        # Missing required fields
-        with pytest.raises(ValidationError):
-            PoseData(
-                source_video="test_video.mp4",
-                frame_number=1,
-                # Missing timestamp and keypoints
-            )
-    
-    def test_dataset_manifest_validation(self):
-        """Test DatasetManifest validation."""
-        # Valid dataset manifest
-        manifest = DatasetManifest(
-            name="test_dataset",
-            version="1.0.0",
-            source_data=["video1.mp4", "video2.mp4"],
-            splits={"train": 100, "val": 20, "test": 30}
+        frame = SkeletonFrame(
+            person_id="P1",
+            frame_id=10,
+            timestamp=0.33,
+            body=body,
+            left_hand=HandJoints(),
+            right_hand=HandJoints()
         )
-        assert manifest.name == "test_dataset"
-        assert manifest.version == "1.0.0"
         
-        # Invalid version format
-        with pytest.raises(ValidationError):
-            DatasetManifest(
-                name="test_dataset",
-                version="invalid_ver",
-                source_data=[],
-                splits={}
-            )
+        assert frame.person_id == "P1"
+        assert frame.body.nose.x == 0.5
+        assert frame.timestamp == 0.33
+        
+    def test_serialization_integrity(self):
+        """Test Pydantic JSON serialization/deserialization."""
+        v = Vector3D(x=0.5, y=0.5, z=0.5, confidence=1.0)
+        json_data = v.model_dump_json()
+        v_loaded = Vector3D.model_validate_json(json_data)
+        
+        assert v_loaded.x == v.x
+        assert v_loaded.y == v.y
+        assert v_loaded.z == v.z

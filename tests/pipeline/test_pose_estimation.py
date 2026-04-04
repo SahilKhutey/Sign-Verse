@@ -1,57 +1,59 @@
 """
-Pipeline tests for pose estimation.
+Pipeline tests for SignVerse 3D Perception and Pose Estimation.
+Mocks heavy AI model loads to ensure rapid test execution.
 """
 import pytest
 import numpy as np
 from unittest.mock import Mock, patch
 
-from models.inference.predict_pose import PosePredictor
-from core.data_models import PoseData, Keypoint
+# Robust mocking: Mock heavy dependencies before any server/pipeline imports
+# This prevents the system from attempting to load GPU-bound or missing libraries
+with patch('models.perception.detection.yolo_detector.YOLODetector'), \
+     patch('models.perception.tracking.bytetrack.ByteTracker'), \
+     patch('models.perception.pose.holistic.HolisticPoseEstimator'):
+    from core.perception.pipeline import PerceptionPipeline
+from core.data_models import SkeletonFrame
 
-class TestPoseEstimation:
-    """Test pose estimation pipeline."""
+class TestPoseEstimationPipeline:
+    """Test the pose estimation component within the perception system."""
     
     @pytest.fixture
-    def mock_pose_data(self):
-        """Create mock pose data for testing."""
-        keypoints = [
-            Keypoint(
-                id=i,
-                name=f"joint_{i}",
-                x=np.random.random(),
-                y=np.random.random(),
-                z=np.random.random(),
-                confidence=0.8 + 0.2 * np.random.random(),
-                visible=True
-            )
-            for i in range(17)  # 17 keypoints like COCO format
-        ]
+    def mock_frame(self):
+        """Create a mock video frame."""
+        return np.zeros((480, 640, 3), dtype=np.uint8)
+
+    def test_perception_processing_loop(self, mock_frame):
+        """Test the perception processing loop with mocked ML components."""
+        # Initialize system (with mocked dependencies)
+        system = PerceptionPipeline()
         
-        return PoseData(
-            source_video="test_video.mp4",
-            frame_number=1,
-            timestamp=1.0,
-            keypoints=keypoints
+        # Mock detector output
+        # Using a mock detection object that matches YOLODetector output
+        mock_detection = Mock()
+        mock_detection.bbox = [100, 100, 200, 200]
+        mock_detection.confidence = 0.9
+        mock_detection.class_name = "person"
+        system.detector.detect.return_value = [mock_detection]
+        
+        # Mock tracker output
+        mock_track = Mock()
+        mock_track.track_id = 1
+        mock_track.bbox = [100, 100, 200, 200]
+        system.tracker.update.return_value = [mock_track]
+        
+        # Mock pose estimator output
+        # Using a mock that matches HolisticPoseEstimator.estimate() -> PoseResult
+        from models.perception.pose_base import PoseResult
+        mock_pose = PoseResult(
+            landmarks={"body": np.zeros((33, 3))},
+            confidence={"body": np.ones(33)}
         )
-    
-    @patch('models.inference.predict_pose.PosePredictor._load_model')
-    def test_pose_prediction(self, mock_load_model, mock_pose_data):
-        """Test pose prediction functionality."""
-        # Mock the model loading
-        mock_model = Mock()
-        mock_load_model.return_value = mock_model
+        system.pose_estimator.estimate.return_value = mock_pose
         
-        # Mock model prediction
-        mock_output = Mock()
-        mock_output.squeeze.return_value.detach.return_value.cpu.return_value.numpy.return_value = np.random.random((1, 51))
-        mock_model.return_value = mock_output
+        # Process frame
+        results = system.process_frame(mock_frame)
         
-        # Initialize predictor
-        predictor = PosePredictor()
-        
-        # Test prediction
-        result = predictor.predict([mock_pose_data])
-        
-        assert len(result) == 1
-        assert isinstance(result[0], PoseData)
-        assert len(result[0].keypoints) == len(mock_pose_data.keypoints)
+        # Verify processing results
+        assert 1 in results # Track ID 1
+        assert "pose" in results[1]
+        assert results[1]["pose"].landmarks is not None

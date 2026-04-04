@@ -270,3 +270,8 @@ class MetadataDB:
             }
         finally:
             session.close()
+    def close(self):
+        """Dispose of the database engine and close connections."""
+        if self.engine:
+            self.engine.dispose()
+            logger.info("Closed metadata database connections")

@@ -145,6 +145,12 @@ class ModelLoader:
     def loaded_models(self):
         return list(self._models.keys())
 
+    def get_feature_extractor(self):
+        if "feature_extractor" not in self._models:
+            from vision_pipeline.feature_extractor import FeatureExtractor
+            self._models["feature_extractor"] = FeatureExtractor()
+        return self._models["feature_extractor"]
+
     def get_gesture_model(self):
         if "gesture" not in self._models:
             from ai_models.gesture_recognition.model import GestureModel

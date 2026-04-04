@@ -227,3 +227,9 @@ class StorageManager:
             return self.hp_storage.convert_to_tfrecords(video_name, video_name)
         else:
             raise ValueError(f"Unsupported export format: {format}")
+
+    def close(self):
+        """Shutdown all storage tiers and release resources."""
+        if hasattr(self, 'metadata_db'):
+            self.metadata_db.close()
+        logger.info("Unified storage manager shut down")

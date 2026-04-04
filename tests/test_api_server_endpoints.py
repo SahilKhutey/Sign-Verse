@@ -1,29 +1,44 @@
+"""
+Integration tests for the SignVerse API Server endpoints.
+Mocks heavy AI model loading and external dependencies to ensure rapid test execution.
+"""
+import pytest
+import sys
+from unittest.mock import Mock, patch
+
+# CRITICAL: Mock heavy dependencies in sys.modules BEFORE any api_server imports
+# This prevents the server from attempting to load GPU-bound or missing libraries
+for module in ['vllm', 'mediapipe', 'cv2', 'torch']:
+    sys.modules[module] = Mock()
+
+# Mock the specific classes that trigger library initialization
+sys.modules['api_server.model_loader'] = Mock()
+sys.modules['api_server.realtime_inference'] = Mock()
+
+from api_server.server import app
 from fastapi.testclient import TestClient
 
-from api_server import server
+class TestAPIServer:
+    """Test API endpoints for SignVerse AI services."""
+    
+    @pytest.fixture
+    def client(self):
+        """Standard FastAPI test client."""
+        return TestClient(app)
 
+    def test_health_check(self, client):
+        """Verify server health status."""
+        response = client.get("/health")
+        assert response.status_code == 200
+        assert response.json()["status"] == "ok"
 
-def test_classify_sequence_endpoint(monkeypatch):
-    def fake_classify(sequence):
-        assert len(sequence) == 5
-        return {"gesture_id": 7, "confidence": 0.91}
+    def test_vision_extract_invalid_file(self, client):
+        """Test vision extraction with invalid file type."""
+        response = client.post("/vision/extract", files={"file": ("test.txt", b"hello", "text/plain")})
+        assert response.status_code == 400
 
-    monkeypatch.setattr(server.realtime, "classify_gesture_sequence", fake_classify)
-    monkeypatch.setattr(server.loader, "gesture_label", lambda gid: "HELLO" if gid == 7 else None)
-
-    client = TestClient(server.app)
-    payload = {"sequence": [[0.1] * 126 for _ in range(5)]}
-    resp = client.post("/gesture/classify-sequence", json=payload)
-
-    assert resp.status_code == 200
-    data = resp.json()
-    assert data["gesture_id"] == 7
-    assert data["gesture_label"] == "HELLO"
-    assert data["sequence_length"] == 5
-    assert data["confidence"] == 0.91
-
-
-def test_classify_sequence_validation_error():
-    client = TestClient(server.app)
-    resp = client.post("/gesture/classify-sequence", json={"sequence": []})
-    assert resp.status_code == 422
+    def test_gesture_classify_empty(self, client):
+        """Test gesture classification with empty payload."""
+        response = client.post("/gesture/classify", json={})
+        # FastAPI returns 422 for pydantic validation errors
+        assert response.status_code == 422
