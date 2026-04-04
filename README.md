@@ -2,8 +2,23 @@
 
 ![SignVerse Architecture](docs/images/architecture.png)
 
-SignVerse is a high-fidelity physical intelligence platform designed for **Human-Object Interaction (HOI)** diagnostics, 3D behavioral analytics, and scalable motion persistence. It transforms monocular video streams into metric 3D intelligence, bridging the gap between raw perception and actionable behavioral intent.
+SignVerse is a high-fidelity physical intelligence platform designed for **Human-Object Interaction (HOI)** diagnostics, 3D behavioral analytics, and scalable motion persistence. It transforms monoculaSignVerse Perception System Test Script
+Complete validation of multi-person tracking, object detection, pose estimation,
+depth awareness, and interaction detection in real-time.
 
+Usage Examples:
+    # Webcam testing
+    python scripts/system_test.py --source 0
+
+    # Video file testing
+    python scripts/system_test.py --source input_video.mp4 --output output_video.avi
+
+    # Headless mode (for processing only)
+    python scripts/system_test.py --source input_video.mp4 --headless
+
+    # Specific camera resolution
+    python scripts/system_test.py --source 0 --resolution 1920 1080
+"""
 ## 🚀 Key Modules
 
 ### 🔍 Perception & Intelligence
@@ -47,7 +62,22 @@ graph TD
 python -m examples.pipeline_usage
 ```
 
-### 2. Run Behavioral Tests
+### 2. System Level Validation (Real-time)
+```bash
+# Webcam testing
+python scripts/system_test.py --source 0
+
+# Video file testing
+python scripts/system_test.py --source input_video.mp4 --output output_video.avi
+
+# Headless mode (for processing only)
+python scripts/system_test.py --source input_video.mp4 --headless
+
+# Specific camera resolution
+python scripts/system_test.py --source 0 --resolution 1920 1080
+```
+
+### 3. Run Behavioral Tests
 ```bash
 ./scripts/run_tests.sh
 ```

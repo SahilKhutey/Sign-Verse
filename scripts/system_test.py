@@ -1,8 +1,20 @@
-#!/usr/bin/env python3
 """
 SignVerse Perception System Test Script
 Complete validation of multi-person tracking, object detection, pose estimation,
 depth awareness, and interaction detection in real-time.
+
+Usage Examples:
+    # Webcam testing
+    python scripts/system_test.py --source 0
+
+    # Video file testing
+    python scripts/system_test.py --source input_video.mp4 --output output_video.avi
+
+    # Headless mode (for processing only)
+    python scripts/system_test.py --source input_video.mp4 --headless
+
+    # Specific camera resolution
+    python scripts/system_test.py --source 0 --resolution 1920 1080
 """
 import cv2
 import numpy as np
