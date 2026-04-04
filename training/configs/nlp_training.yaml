@@ -1,0 +1,11 @@
+sign_transformer:
+  # This file is optional; `training_config.yaml` is the primary config.
+  feature_dim: 126
+  text_vocab_size: 10000
+  d_model: 512
+  nhead: 8
+  num_layers: 6
+  batch_size: 32
+  lr: 1.0e-4
+  epochs: 50
+  save_dir: "models"

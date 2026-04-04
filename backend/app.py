@@ -1,0 +1,428 @@
+"""
+SignVerse Backend Server
+
+Main FastAPI application with CORS, routing, and lifespan management.
+Stores user data, translation history, and dataset metadata.
+"""
+
+from fastapi import FastAPI, Request, BackgroundTasks, HTTPException
+from fastapi.exceptions import RequestValidationError
+from fastapi.responses import JSONResponse
+from starlette.status import HTTP_422_UNPROCESSABLE_ENTITY, HTTP_500_INTERNAL_SERVER_ERROR
+from fastapi.middleware.cors import CORSMiddleware
+from pydantic import BaseModel
+import uvicorn
+import socketio
+import asyncio
+import os
+import sys
+import time
+import threading
+from datetime import datetime
+from dotenv import load_dotenv
+
+# Load environment (optional .env)
+load_dotenv()
+
+# Add project root to sys.path
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
+
+from common.logger import get_logger
+from common.telemetry import setup_telemetry
+from slowapi import _rate_limit_exceeded_handler
+from slowapi.util import get_remote_address
+from slowapi.errors import RateLimitExceeded
+
+logger = get_logger("signverse-backend")
+from backend.utils.rate_limit import limiter
+
+from backend.database.db_connection import init_db
+from backend.database.db_connection import SessionLocal
+from sqlalchemy import text
+from backend.services.user_service import router as user_router
+from backend.services.translation_service import router as translation_router
+from backend.config import ALLOWED_ORIGINS, INFERENCE_API_URL
+
+app = FastAPI(
+    title="SignVerse Backend",
+    version="1.0.0",
+    description="Backend server for SignVerse sign language translation platform"
+)
+
+# Telemetry setup
+setup_telemetry(app, service_name="signverse-backend")
+
+# Rate Limiter setup
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+
+# Socket.io setup
+socketio_origins = "*" if ("*" in ALLOWED_ORIGINS) else (ALLOWED_ORIGINS or [])
+sio = socketio.AsyncServer(async_mode='asgi', cors_allowed_origins=socketio_origins)
+sio_app = socketio.ASGIApp(sio, app)
+
+# CORS
+allow_all = "*" in ALLOWED_ORIGINS if ALLOWED_ORIGINS else False
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"] if allow_all else (ALLOWED_ORIGINS or []),
+    allow_credentials=False if allow_all else True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+# Routes
+app.include_router(user_router, prefix="/api/users", tags=["Users"])
+app.include_router(translation_router, prefix="/api/translations", tags=["Translations"])
+
+
+class TextGlossPipelineRequest(BaseModel):
+    min_len: int = 1
+    max_len: int = 50
+    max_pairs: int = 0
+    curriculum: bool = False
+    augment: bool = False
+    register: bool = False
+    fail_on_warnings: bool = True
+    epochs: int = 10
+    batch_size: int = 32
+    lr: float = 2e-4
+
+
+_PIPELINE_STATUS_LOCK = threading.Lock()
+_TEXT_GLOSS_PIPELINE_STATUS = {
+    "state": "idle",
+    "run_id": None,
+    "queued_at": None,
+    "started_at": None,
+    "finished_at": None,
+    "return_code": None,
+    "error": None,
+    "log_tail": None,
+}
+
+
+def _utc_now():
+    return datetime.utcnow().isoformat() + "Z"
+
+
+def _get_pipeline_status():
+    with _PIPELINE_STATUS_LOCK:
+        return dict(_TEXT_GLOSS_PIPELINE_STATUS)
+
+
+def _set_pipeline_status(**kwargs):
+    with _PIPELINE_STATUS_LOCK:
+        _TEXT_GLOSS_PIPELINE_STATUS.update(kwargs)
+
+
+def _queue_pipeline_run():
+    with _PIPELINE_STATUS_LOCK:
+        if _TEXT_GLOSS_PIPELINE_STATUS.get("state") in {"queued", "running"}:
+            return None
+        run_id = os.urandom(6).hex()
+        _TEXT_GLOSS_PIPELINE_STATUS.update(
+            {
+                "state": "queued",
+                "run_id": run_id,
+                "queued_at": _utc_now(),
+                "started_at": None,
+                "finished_at": None,
+                "return_code": None,
+                "error": None,
+                "log_tail": None,
+            }
+        )
+        return run_id
+
+
+def _require_admin(request: Request):
+    admin_token = os.getenv("ADMIN_TOKEN")
+    if not admin_token:
+        raise HTTPException(status_code=503, detail="Admin token not configured")
+    provided = request.headers.get("x-admin-token")
+    if provided != admin_token:
+        raise HTTPException(status_code=401, detail="Unauthorized")
+
+
+def _run_text_gloss_pipeline(payload: TextGlossPipelineRequest, run_id: str):
+    import subprocess
+    import sys
+    cmd = [
+        sys.executable,
+        os.path.join("training", "run_text_gloss_pipeline.py"),
+        "--min-len", str(payload.min_len),
+        "--max-len", str(payload.max_len),
+        "--epochs", str(payload.epochs),
+        "--batch-size", str(payload.batch_size),
+        "--lr", str(payload.lr),
+    ]
+    if payload.max_pairs:
+        cmd += ["--max-pairs", str(payload.max_pairs)]
+    if payload.curriculum:
+        cmd.append("--curriculum")
+    if payload.augment:
+        cmd.append("--augment")
+    if payload.register:
+        cmd.append("--register")
+    if payload.fail_on_warnings:
+        cmd.append("--fail-on-warnings")
+    _set_pipeline_status(
+        state="running",
+        run_id=run_id,
+        started_at=_utc_now(),
+        finished_at=None,
+        return_code=None,
+        error=None,
+    )
+    try:
+        proc = subprocess.run(cmd, capture_output=True, text=True)
+        output = (proc.stdout or "") + ("\n" + proc.stderr if proc.stderr else "")
+        _set_pipeline_status(
+            state="success" if proc.returncode == 0 else "failed",
+            run_id=run_id,
+            finished_at=_utc_now(),
+            return_code=proc.returncode,
+            log_tail=output[-4000:] if output else None,
+            error=None if proc.returncode == 0 else "pipeline_failed",
+        )
+    except Exception as exc:
+        _set_pipeline_status(
+            state="failed",
+            run_id=run_id,
+            finished_at=_utc_now(),
+            return_code=-1,
+            error=str(exc),
+        )
+
+
+@app.post("/admin/pipeline/text-gloss")
+async def run_text_gloss_pipeline(
+    request: Request,
+    payload: TextGlossPipelineRequest,
+    background_tasks: BackgroundTasks,
+):
+    _require_admin(request)
+    run_id = _queue_pipeline_run()
+    if run_id is None:
+        raise HTTPException(status_code=409, detail="Pipeline already running")
+    background_tasks.add_task(_run_text_gloss_pipeline, payload, run_id)
+    return {"status": "queued", "run_id": run_id}
+
+
+@app.get("/admin/pipeline/text-gloss/status")
+async def text_gloss_pipeline_status(request: Request):
+    _require_admin(request)
+    return _get_pipeline_status()
+
+@app.middleware("http")
+async def add_request_id_and_log(request: Request, call_next):
+    request_id = request.headers.get("x-request-id") or os.urandom(8).hex()
+    request.state.request_id = request_id
+    start = time.time()
+    response = await call_next(request)
+    duration_ms = int((time.time() - start) * 1000)
+    response.headers["x-request-id"] = request_id
+    logger.info(
+        "http_request",
+        extra={
+            "request_id": request_id,
+            "path": request.url.path,
+            "method": request.method,
+            "status_code": response.status_code,
+            "duration_ms": duration_ms,
+            "client_ip": request.client.host if request.client else None,
+        },
+    )
+    return response
+
+
+@app.exception_handler(RequestValidationError)
+async def validation_exception_handler(request: Request, exc: RequestValidationError):
+    return JSONResponse(
+        status_code=HTTP_422_UNPROCESSABLE_ENTITY,
+        content={
+            "error": "validation_error",
+            "detail": exc.errors(),
+            "request_id": getattr(request.state, "request_id", None),
+        },
+    )
+
+
+@app.exception_handler(Exception)
+async def unhandled_exception_handler(request: Request, exc: Exception):
+    logger.exception("unhandled_exception", extra={"request_id": getattr(request.state, "request_id", None)})
+    return JSONResponse(
+        status_code=HTTP_500_INTERNAL_SERVER_ERROR,
+        content={
+            "error": "server_error",
+            "detail": "internal error",
+            "request_id": getattr(request.state, "request_id", None),
+        },
+    )
+
+@app.get("/health")
+async def health_check():
+    return {"status": "healthy", "service": "signverse-backend"}
+
+
+@app.on_event("startup")
+async def startup():
+    init_db()
+
+
+@app.get("/health/ready")
+async def readiness_check():
+    db_ok = False
+    inference_ok = False
+    error = None
+    try:
+        with SessionLocal() as db:
+            db.execute(text("SELECT 1"))
+        db_ok = True
+    except Exception as e:
+        error = f"db_error: {e}"
+
+    try:
+        import httpx
+        async with httpx.AsyncClient(timeout=5.0) as client:
+            resp = await client.get(INFERENCE_API_URL.rstrip("/") + "/health")
+            inference_ok = (resp.status_code == 200)
+            if not inference_ok:
+                error = f"inference_error: {resp.text}"
+    except Exception as e:
+        logger.exception("readiness_check_failed")
+        error = f"readiness_error: {e}"
+
+    status = "ready" if (db_ok and inference_ok) else "degraded"
+    return {
+        "status": status,
+        "db_ok": db_ok,
+        "inference_ok": inference_ok,
+        "error": error,
+    }
+
+
+@app.get("/dashboard")
+async def dashboard():
+    """
+    Minimal HTML dashboard for MVP monitoring.
+    """
+    import json
+    import os
+
+    def _load_json(path, default):
+        try:
+            if os.path.exists(path):
+                with open(path, "r", encoding="utf-8") as f:
+                    return json.load(f)
+        except Exception:
+            return default
+        return default
+
+    model_manifest = _load_json("deployment/model_registry/manifest.json", {})
+    nlp_eval = _load_json("reports/nlp_eval.json", {})
+
+    html = f"""
+    <html>
+    <head>
+      <title>SignVerse Dashboard</title>
+      <style>
+        body {{ font-family: Arial, sans-serif; margin: 24px; }}
+        h1 {{ margin-bottom: 8px; }}
+        .card {{ border: 1px solid #ddd; padding: 16px; margin-bottom: 16px; border-radius: 8px; }}
+        pre {{ background: #f7f7f7; padding: 12px; border-radius: 6px; overflow-x: auto; }}
+      </style>
+    </head>
+    <body>
+      <h1>SignVerse MVP Dashboard</h1>
+      <div class="card">
+        <h3>Model Registry</h3>
+        <pre>{json.dumps(model_manifest, indent=2)}</pre>
+      </div>
+      <div class="card">
+        <h3>Latest NLP Eval</h3>
+        <pre>{json.dumps(nlp_eval, indent=2)}</pre>
+      </div>
+    </body>
+    </html>
+    """
+    return html
+
+
+@app.get("/dashboard/json")
+async def dashboard_json():
+    """
+    JSON dashboard data for UI clients.
+    """
+    import json
+    import os
+
+    def _load_json(path, default):
+        try:
+            if os.path.exists(path):
+                with open(path, "r", encoding="utf-8") as f:
+                    return json.load(f)
+        except Exception:
+            return default
+        return default
+
+    model_manifest = _load_json("deployment/model_registry/manifest.json", {})
+    nlp_eval = _load_json("reports/nlp_eval.json", {})
+    dataset_report = _load_json("reports/text_gloss_dataset_report.json", {})
+    return {
+        "model_registry": model_manifest,
+        "nlp_eval": nlp_eval,
+        "text_gloss_dataset": dataset_report,
+    }
+
+
+# --- Socket.io Events ---
+@sio.event
+async def connect(sid, environ):
+    logger.info("socket_connect", extra={"sid": sid})
+
+@sio.event
+async def disconnect(sid):
+    logger.info("socket_disconnect", extra={"sid": sid})
+
+@sio.event
+async def join_room(sid, data):
+    room = data.get("room")
+    await sio.enter_room(sid, room)
+    logger.info("socket_join_room", extra={"sid": sid, "room": room})
+    await sio.emit("message", {"text": f"User joined {room}"}, room=room)
+
+@sio.event
+async def send_translation(sid, data):
+    # Broadcast translation to everyone in the room
+    room = data.get("room")
+    translation = data.get("translation")
+    await sio.emit("new_translation", translation, room=room)
+
+if __name__ == "__main__":
+    import uvicorn
+    import os
+    import socket
+    import sys
+
+    port = int(os.getenv("BACKEND_PORT", 8001))
+    host = "0.0.0.0"
+
+    # Attempt to check if port is in use
+    try:
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+            if s.connect_ex((host, port)) == 0:
+                logger.error(f"Port {port} is already in use. Please terminate the process using it.")
+                # We could exit, or try next port, but usually 8001 is expected.
+                # However, for robustness:
+                # sys.exit(1)
+    except Exception as e:
+        logger.warning(f"Could not check port status: {e}")
+
+    logger.info(f"Starting SignVerse Backend on {host}:{port}...")
+    try:
+        uvicorn.run(sio_app, host=host, port=port, log_level="info")
+    except Exception as e:
+        logger.error(f"Failed to start backend: {e}")
+        sys.exit(1)

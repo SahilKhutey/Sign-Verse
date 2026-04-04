@@ -1,0 +1,7 @@
+global:
+  scrape_interval: 15s
+
+scrape_configs:
+  - job_name: 'signverse-api'
+    static_configs:
+      - targets: ['sign-to-text:8001', 'text-to-sign:8002', 'websocket:8765']

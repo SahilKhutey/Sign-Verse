@@ -1,0 +1,44 @@
+# SignVerse-AI — Production GPU Dockerfile
+# Optimized for NVIDIA H100/A100/RTX-3090/4090
+FROM nvidia/cuda:12.1.0-cudnn8-runtime-ubuntu22.04
+
+# Set non-interactive debian frontend
+ENV DEBIAN_FRONTEND=noninteractive
+
+# System dependencies
+RUN apt-get update && apt-get install -y \
+    python3.10 \
+    python3-pip \
+    libgl1-mesa-glx \
+    libglib2.0-0 \
+    curl \
+    git \
+    && rm -rf /var/lib/apt/lists/*
+
+# Workspace
+WORKDIR /app
+
+# Requirements (Pip)
+COPY requirements.txt .
+RUN pip3 install --no-cache-dir -r requirements.txt
+
+# MediaPipe & PyTorch
+RUN pip3 install mediapipe torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu121
+
+# Project source
+COPY . .
+
+# Environment vars
+ENV PYTHONPATH=/app
+ENV UVICORN_HOST=0.0.0.0
+ENV UVICORN_PORT=8000
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=10s --retries=3 \
+  CMD curl -f http://localhost:8000/health || exit 1
+
+# Expose
+EXPOSE 8000
+
+# Start unified AI server
+CMD ["python3", "-m", "api_server.server"]

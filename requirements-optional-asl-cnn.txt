@@ -1,0 +1,2 @@
+# Optional dependencies for Keras prototype paths (ASL CNN + Video CNN/LSTM)
+tensorflow>=2.15

@@ -1,0 +1,183 @@
+################################################################################
+# SignVerse — Hybrid Edge + Cloud Inference System (Kubernetes Manifests)
+#
+# Includes:
+#   - Redis deployment + service (session state)
+#   - Inference Deployment with HPA (cloud AI pods)
+#   - HybridRouter service (dedicated endpoint for AR glasses)
+#   - NetworkPolicy (TLS enforcement + pod isolation)
+################################################################################
+
+# ── Redis Session Store ────────────────────────────────────────────────────────
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: redis
+  labels: { app: redis }
+spec:
+  replicas: 1
+  selector:
+    matchLabels: { app: redis }
+  template:
+    metadata:
+      labels: { app: redis }
+    spec:
+      containers:
+      - name: redis
+        image: redis:7-alpine
+        ports:
+        - containerPort: 6379
+        args: ["--maxmemory", "512mb", "--maxmemory-policy", "allkeys-lru"]
+        resources:
+          requests: { cpu: "250m", memory: "256Mi" }
+          limits:   { cpu: "500m", memory: "512Mi" }
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: redis-service
+spec:
+  selector: { app: redis }
+  ports:
+  - port: 6379
+    targetPort: 6379
+  type: ClusterIP
+
+---
+# ── Cloud Inference Pods ───────────────────────────────────────────────────────
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: signverse-inference
+  labels: { app: signverse-inference }
+spec:
+  replicas: 3
+  selector:
+    matchLabels: { app: signverse-inference }
+  template:
+    metadata:
+      labels: { app: signverse-inference }
+    spec:
+      containers:
+      - name: inference-engine
+        image: signverse-ai/inference-engine:latest
+        ports:
+        - containerPort: 8000
+        env:
+        - name: REDIS_URL
+          value: "redis://redis-service:6379"
+        - name: STREAM_TOKEN
+          valueFrom:
+            secretKeyRef:
+              name: signverse-secrets
+              key: stream-token
+        - name: CLOUD_POD_URLS
+          value: "http://signverse-inference-service:8000"
+        resources:
+          requests: { cpu: "2",  memory: "4Gi" }
+          limits:   { cpu: "4",  memory: "8Gi" }
+        livenessProbe:
+          httpGet: { path: /health, port: 8000 }
+          initialDelaySeconds: 30
+          periodSeconds: 10
+        readinessProbe:
+          httpGet: { path: /health/ready, port: 8000 }
+          initialDelaySeconds: 15
+          periodSeconds: 5
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: signverse-inference-service
+spec:
+  selector: { app: signverse-inference }
+  ports:
+  - name: http
+    port: 8000
+    targetPort: 8000
+  type: ClusterIP
+
+---
+# ── Horizontal Pod Autoscaler ──────────────────────────────────────────────────
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: signverse-inference-hpa
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: signverse-inference
+  minReplicas: 3
+  maxReplicas: 20
+  metrics:
+  - type: Resource
+    resource:
+      name: cpu
+      target:
+        type: Utilization
+        averageUtilization: 70
+  - type: Resource
+    resource:
+      name: memory
+      target:
+        type: Utilization
+        averageUtilization: 80
+
+---
+# ── Hybrid Router External Service (for AR Glasses) ───────────────────────────
+# Exposes /ws/hybrid with TLS termination (cert-manager handles certs)
+apiVersion: v1
+kind: Service
+metadata:
+  name: signverse-hybrid-loadbalancer
+  annotations:
+    service.beta.kubernetes.io/aws-load-balancer-ssl-cert: "arn:aws:acm:REGION:ACCOUNT:certificate/CERT_ID"
+    service.beta.kubernetes.io/aws-load-balancer-backend-protocol: "http"
+    service.beta.kubernetes.io/aws-load-balancer-ssl-ports: "443"
+spec:
+  selector: { app: signverse-inference }
+  ports:
+  - name: https
+    port: 443
+    targetPort: 8000
+  type: LoadBalancer
+
+---
+# ── NetworkPolicy: Isolate inference pods ─────────────────────────────────────
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: inference-isolation
+spec:
+  podSelector:
+    matchLabels: { app: signverse-inference }
+  policyTypes: [Ingress, Egress]
+  ingress:
+  - from:
+    - podSelector:
+        matchLabels: { app: signverse-inference }
+    ports:
+    - port: 8000
+  egress:
+  - to:
+    - podSelector:
+        matchLabels: { app: redis }
+    ports:
+    - port: 6379
+  - to: []  # Allow outbound for model fetching
+    ports:
+    - port: 443
+    - port: 80
+
+---
+# ── Secrets (apply separately with real values) ───────────────────────────────
+# kubectl create secret generic signverse-secrets \
+#   --from-literal=stream-token=YOUR_TOKEN
+apiVersion: v1
+kind: Secret
+metadata:
+  name: signverse-secrets
+type: Opaque
+data:
+  stream-token: ""   # base64-encoded token placeholder

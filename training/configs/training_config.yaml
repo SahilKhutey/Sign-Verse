@@ -1,0 +1,89 @@
+# =============================================================================
+# SignVerse Training Configuration - FULL SCALE PRODUCTION
+# =============================================================================
+
+preprocessing:
+  frame_rate: 25
+  pose_extractor: holistic
+  feature_dim: 225
+  normalize: true
+  min_seq_len: 10
+  max_seq_len: 150
+  output_dir: "training-data"
+
+gesture_model:
+  input_size: 126
+  hidden_size: 256
+  num_classes: 100
+  num_lstm_layers: 2
+  nhead: 8
+  num_transformer_layers: 4
+  seq_len: 30
+  batch_size: 32
+  lr: 1.0e-3
+  epochs: 10
+  save_every: 5
+  checkpoint_dir: "checkpoints/gesture"
+  data_dir: "training-data"
+  save_dir: "models"
+
+foundation_model:
+  vocab_size: 512
+  d_model: 512
+  nhead: 8
+  num_layers: 6
+  dim_feedforward: 2048
+  dropout: 0.1
+  seq_len: 128
+  batch_size: 8
+  lr: 3.0e-4
+  epochs: 10
+  save_every: 5
+  token_dir: "datasets/gesture_tokens"
+  save_dir: "models"
+
+sign_transformer:
+  feature_dim: 126
+  text_vocab_size: 10000
+  d_model: 512
+  nhead: 8
+  num_layers: 6
+  src_len: 50
+  tgt_len: 25
+  batch_size: 8
+  lr: 1.0e-4
+  epochs: 10
+  save_dir: "models"
+  multilingual: true
+
+diffusion_model:
+  motion_dim: 150
+  seq_len: 30
+  d_model: 512
+  num_blocks: 4
+  num_timesteps: 1000
+  lr: 1.0e-4
+  batch_size: 8
+  epochs: 20
+  save_dir: "models"
+
+multimodal_llm:
+  gesture_dim: 225
+  text_vocab: 10000
+  d_model: 512
+  lr: 5.0e-5
+  batch_size: 8
+  epochs: 10
+  save_dir: "models"
+
+co_speech:
+  epochs: 10
+  batch_size: 16
+  num_samples: 50000
+  save_dir: "models"
+
+hardware:
+  device: cpu
+  num_workers: 2
+  pin_memory: false
+  mixed_precision: false

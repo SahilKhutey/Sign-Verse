@@ -1,0 +1,227 @@
+# API Documentation
+
+This repo contains two FastAPI entrypoints:
+- `api_gateway/` (minimal: speech -> sign tokens)
+- `api_server/` (unified server: vision + gesture + translation + generation + websocket)
+
+## API Gateway (`api_gateway/main.py`)
+
+### `POST /speech-to-sign/`
+
+Accepts: multipart file upload (audio).
+
+Returns:
+```json
+{
+  "text": "hello how are you",
+  "sign_tokens": ["HELLO", "HOW", "YOU"]
+}
+```
+
+Implementation:
+- STT: `ai_engine/modules/speech_to_text.py` (faster-whisper)
+- Text->sign tokens: `ai_engine/modules/text_to_sign.py` (rule-based)
+
+## Unified API Server (`api_server/server.py`)
+
+### `GET /health`
+
+Returns:
+```json
+{ "status": "ok", "models": ["gesture", "diffusion", "..."] }
+```
+
+### `POST /vision/extract`
+
+Accepts: multipart file upload (image bytes).
+
+Returns:
+```json
+{ "features": [0.0, 0.1, "..."], "dim": 225 }
+```
+
+Uses:
+- `vision_pipeline/feature_extractor.py`
+
+### `POST /gesture/classify`
+
+Accepts:
+```json
+{ "keypoints": [0.1, 0.2, "..."] }
+```
+
+Returns:
+```json
+{ "gesture_id": 123, "gesture_label": "HELLO" }
+```
+
+Note:
+- `gesture_label` is returned when a `label_map.json` is available (from training preprocessing).
+
+### `POST /gesture/classify-image-cnn`
+
+Optional image-based ASL classifier (Keras).
+
+Accepts: multipart file upload (`image/*`).
+
+Query params:
+- `min_confidence` (default `0.4`)
+
+Returns:
+```json
+{ "class_id": 3, "label": "D", "confidence": 0.91 }
+```
+
+### `POST /gesture/classify-image-cnn-fingerspell`
+
+Optional image-based ASL classifier plus server-side session decoding for
+alphabet finger-spelling.
+
+Accepts: multipart file upload (`image/*`).
+
+Query params:
+- `session_id` (default `default`)
+- `min_confidence` (default `0.4`)
+- `reset` (default `false`) clears session text state
+
+Returns:
+```json
+{
+  "class_id": 3,
+  "label": "D",
+  "confidence": 0.91,
+  "session_id": "demo",
+  "stable_label": "D",
+  "committed": "D",
+  "text": "HELLO"
+}
+```
+
+### `POST /gesture/classify-video-lstm`
+
+Optional isolated sign classifier using InceptionV3 features + LSTM (Keras).
+
+Accepts: multipart file upload (`video/*` or `application/octet-stream`).
+
+Query params:
+- `min_confidence` (default `0.4`)
+
+Returns:
+```json
+{ "class_id": 12, "label": "HELLO", "confidence": 0.86 }
+```
+
+### `POST /analyze/frame`
+
+Single-shot helper: image frame -> keypoints -> gesture classification.
+
+Accepts: multipart file upload (image bytes).
+
+Returns:
+```json
+{ "gesture_id": 123, "gesture_label": "HELLO", "sign_tokens": ["HELLO"], "dim": 225 }
+```
+
+### `POST /translate/sign-to-text`
+
+Accepts:
+```json
+{ "sequence": [[0.0, 0.1], [0.1, 0.2]] }
+```
+
+Returns:
+```json
+{ "text": "Sign 0029" }
+```
+
+Note:
+- Decoding uses `models/sign_transformer_vocab.json` when available; otherwise it falls back to `TOKEN_{id}`.
+- Translation quality depends on having real paired sign-to-text data (sentence-level datasets).
+
+### `POST /translate/video-to-text`
+
+Translate uploaded sign video clip to text.
+
+Accepts: multipart file upload (`video/*` or `application/octet-stream`).
+
+Query params:
+- `sample_every` (default `2`)
+- `max_frames` (default `90`)
+
+Returns:
+```json
+{
+  "text": "HELLO HOW ARE YOU",
+  "num_frames": 72,
+  "feature_dim": 225
+}
+```
+
+### `POST /translate/text-to-sign`
+
+Accepts:
+```json
+{ "text": "I am going to school tomorrow" }
+```
+
+Returns:
+```json
+{ "tokens": ["I", "GOING", "SCHOOL", "TOMORROW"] }
+```
+
+### `POST /translate/text-to-sign-video-plan`
+
+Builds concatenative clip plan for sentence-level sign video synthesis.
+
+Accepts:
+```json
+{
+  "text": "hello how are you",
+  "dictionary_manifest": "datasets/sign_dictionary/manifest.csv",
+  "strict_manifest": false
+}
+```
+
+Returns (shape):
+```json
+{
+  "text": "hello how are you",
+  "tokens": ["HELLO", "HOW", "YOU"],
+  "plan": [
+    {"token": "HELLO", "found": true, "video_path": "..."}
+  ],
+  "coverage": 1.0,
+  "missing_tokens": []
+}
+```
+
+### `POST /generate/motion`
+
+Accepts:
+```json
+{ "tokens": ["HELLO"], "frames": 30 }
+```
+
+Returns:
+```json
+{ "motion": [[0.0, 0.0], [0.1, 0.2]], "frames": 30 }
+```
+
+Note: generated motion vectors are not yet retargeted to an avatar rig.
+
+### `WS /ws/stream`
+
+Input payload (example):
+```json
+{ "frame_id": 1, "keypoints": [0.0, 0.1], "text": "hello" }
+```
+
+Output payload (example):
+```json
+{ "frame_id": 1, "gesture_id": 42, "gesture_label": "HELLO", "sign_tokens": ["HELLO"] }
+```
+
+## Running Locally (after import/layout fixes)
+
+- `uvicorn api_server.server:app --host 0.0.0.0 --port 8000`
+- `uvicorn api_gateway.main:app --host 0.0.0.0 --port 8001`

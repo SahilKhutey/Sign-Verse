@@ -1,0 +1,6 @@
+{
+  "registered_at": "2026-03-29T07:58:18.537295",
+  "source": "models\\sign_transformer_best.pt",
+  "version": "v20260329-022814-c81bfcc",
+  "git_hash": "c81bfcc"
+}

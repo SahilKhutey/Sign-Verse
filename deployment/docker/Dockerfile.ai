@@ -1,0 +1,51 @@
+# Stage 1: Build & Dependencies
+FROM python:3.11-slim AS builder
+
+WORKDIR /build
+
+# Install build dependencies
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    build-essential \
+    && rm -rf /var/lib/apt/cache/*
+
+COPY requirements.txt .
+RUN pip wheel --no-cache-dir --wheel-dir /build/wheels -r requirements.txt
+
+# Stage 2: Runtime
+FROM nvidia/cuda:12.1.1-cudnn8-runtime-ubuntu22.04 AS runtime
+
+# Install Python and essential libraries
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    python3.11 \
+    python3-pip \
+    libgl1-mesa-glx \
+    libglib2.0-0 \
+    && rm -rf /var/lib/apt/lists/*
+
+# Create a non-root user
+RUN useradd -m signverse
+USER signverse
+WORKDIR /app
+
+# Copy wheels from builder and install
+COPY --from=builder /build/wheels /wheels
+RUN pip install --no-cache-dir /wheels/*
+
+# Copy application code
+COPY ai_engine/ ./ai_engine/
+COPY ai_models/ ./ai_models/
+COPY api_gateway/ ./api_gateway/
+COPY api_server/ ./api_server/
+COPY gesture_recognition/ ./gesture_recognition/
+COPY models/ ./models/
+COPY nlp_translation/ ./nlp_translation/
+COPY vision_pipeline/ ./vision_pipeline/
+COPY avatar_animation/ ./avatar_animation/
+
+ENV PYTHONUNBUFFERED=1
+ENV PATH="/home/signverse/.local/bin:${PATH}"
+
+EXPOSE 8000
+
+# Use Gunicorn with Uvicorn workers for production
+CMD ["gunicorn", "-k", "uvicorn.workers.UvicornWorker", "api_gateway.main:app", "--bind", "0.0.0.0:8000", "--workers", "4", "--timeout", "120"]
